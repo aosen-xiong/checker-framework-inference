@@ -46,7 +46,7 @@ if [[ "${GROUP}" == downstream* && "${SLUGOWNER}" == "opprop" ]]; then
     clone_downstream () {
         DOWNSTREAM_PROJ="$(pwd -P)/../$1"
         echo "clone downstream to: ${DOWNSTREAM_PROJ}"
-        COMMAND="/tmp/git-scripts/git-clone-related opprop $1 ${DOWNSTREAM_PROJ}"
+        COMMAND="git clone --depth 1 -q -b $2 https://github.com/opprop/$1.git ${DOWNSTREAM_PROJ}"
         echo "Running: ($COMMAND)"
         (eval $COMMAND)
         echo "... done: ($COMMAND)"
