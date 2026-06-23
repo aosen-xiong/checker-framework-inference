@@ -14,6 +14,7 @@ public class InferenceRepairEditGeneratorTest {
     public void prefersInScopeStringLocalBeforeLiteralFallback() {
         String source =
                 "class Test {\n"
+                        + "  void recordId(String id) {}\n"
                         + "  void setId(String maybeId) {\n"
                         + "    String fallbackId = \"unknown\";\n"
                         + "    recordId(maybeId);\n"
@@ -32,6 +33,7 @@ public class InferenceRepairEditGeneratorTest {
     public void fallsBackToStringLiteralWhenNoLocalExists() {
         String source =
                 "class Test {\n"
+                        + "  void recordId(String id) {}\n"
                         + "  void setId(String maybeId) {\n"
                         + "    recordId(maybeId);\n"
                         + "  }\n"
@@ -49,6 +51,7 @@ public class InferenceRepairEditGeneratorTest {
     public void doesNotUseNullableStringLocalAsFallback() {
         String source =
                 "class Test {\n"
+                        + "  void recordId(String id) {}\n"
                         + "  void setId(String maybeId) {\n"
                         + "    @Nullable String nullableId = maybeId;\n"
                         + "    recordId(maybeId);\n"
@@ -61,6 +64,61 @@ public class InferenceRepairEditGeneratorTest {
 
         assertEquals(1, edits.size());
         assertEquals("\"\"", edits.get(0).getReplacementSource());
+    }
+
+    @Test
+    public void usesIntegerDefaultForIntegerMethodArgument() {
+        String source =
+                "class Test {\n"
+                        + "  void recordCount(Integer count) {}\n"
+                        + "  void setCount(Integer maybeCount) {\n"
+                        + "    recordCount(maybeCount);\n"
+                        + "  }\n"
+                        + "}\n";
+        InferenceRepairTarget target = targetFor(source, "maybeCount");
+
+        List<InferenceRepairEdit> edits =
+                generator.generate(candidate(), target, source);
+
+        assertEquals(1, edits.size());
+        assertEquals("0", edits.get(0).getReplacementSource());
+    }
+
+    @Test
+    public void prefersSameTypeLocalForIntegerMethodArgument() {
+        String source =
+                "class Test {\n"
+                        + "  void recordCount(Integer count) {}\n"
+                        + "  void setCount(Integer maybeCount) {\n"
+                        + "    Integer fallbackCount = 0;\n"
+                        + "    recordCount(maybeCount);\n"
+                        + "  }\n"
+                        + "}\n";
+        InferenceRepairTarget target = targetFor(source, "maybeCount");
+
+        List<InferenceRepairEdit> edits =
+                generator.generate(candidate(), target, source);
+
+        assertEquals("fallbackCount", edits.get(0).getReplacementSource());
+        assertEquals("0", edits.get(1).getReplacementSource());
+    }
+
+    @Test
+    public void usesBooleanDefaultForFieldAssignment() {
+        String source =
+                "class Test {\n"
+                        + "  Boolean enabled = false;\n"
+                        + "  void setEnabled(Boolean maybeEnabled) {\n"
+                        + "    enabled = maybeEnabled;\n"
+                        + "  }\n"
+                        + "}\n";
+        InferenceRepairTarget target = targetFor(source, "maybeEnabled");
+
+        List<InferenceRepairEdit> edits =
+                generator.generate(candidate(), target, source);
+
+        assertEquals(1, edits.size());
+        assertEquals("false", edits.get(0).getReplacementSource());
     }
 
     private static InferenceRepairCandidate candidate() {
