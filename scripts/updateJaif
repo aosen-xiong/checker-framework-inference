@@ -18,4 +18,5 @@ then
 fi
 
 distDir=$myDir"/../dist"
-eval "java -classpath "$distDir"/checker.jar:"$distDir"/checker-framework-inference.jar checkers.inference.SolutionJaifUpdater " "$@"
+java -classpath "$distDir"/checker.jar:"$distDir"/checker-framework-inference.jar \
+    checkers.inference.SolutionJaifUpdater "$@"

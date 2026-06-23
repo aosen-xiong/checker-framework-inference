@@ -18,4 +18,6 @@ then
 fi
 
 distDir=$myDir"/../dist"
-eval "java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005 -classpath "$distDir"/checker.jar:"$distDir"/checker-framework-inference.jar  checkers.inference.InferenceLauncher " "$@"
+java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005 \
+    -classpath "$distDir"/checker.jar:"$distDir"/checker-framework-inference.jar \
+    checkers.inference.InferenceLauncher "$@"
