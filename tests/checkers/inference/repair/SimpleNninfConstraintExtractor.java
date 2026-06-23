@@ -11,9 +11,17 @@ import java.util.List;
 
 /** Extracts fixture-shaped nninf repair constraints from checker diagnostics. */
 public final class SimpleNninfConstraintExtractor {
+    public boolean supports(RepairDiagnostic diagnostic) {
+        return diagnostic.getKey().equals("assignment.type.incompatible")
+                || diagnostic.getKey().equals("argument.type.incompatible");
+    }
+
     public List<RepairConstraint> extract(List<RepairDiagnostic> diagnostics) {
         List<RepairConstraint> constraints = new ArrayList<>();
         for (RepairDiagnostic diagnostic : diagnostics) {
+            if (!supports(diagnostic)) {
+                continue;
+            }
             if (diagnostic.getKey().equals("assignment.type.incompatible")) {
                 constraints.add(extractAssignmentConstraint(diagnostic));
             } else if (diagnostic.getKey().equals("argument.type.incompatible")) {
@@ -110,7 +118,10 @@ public final class SimpleNninfConstraintExtractor {
             int beforeLineNumber,
             String methodName,
             String role) {
-        for (int index = 0; index < beforeLineNumber - 1; index++) {
+        for (int index = 0; index < lines.size(); index++) {
+            if (index == beforeLineNumber - 1) {
+                continue;
+            }
             String line = lines.get(index);
             if (line.contains(methodName + "(") && line.contains(")")) {
                 return new RepairSlot(
@@ -130,8 +141,7 @@ public final class SimpleNninfConstraintExtractor {
     }
 
     private static boolean declaresName(String line, String name) {
-        return line.matches(".*\\b" + name + "\\b.*")
-                && (line.contains(";") || line.contains("(") || line.contains(","));
+        return line.matches(".*\\b(String|Integer|Character)\\s+" + name + "\\b.*");
     }
 
     private static String qualifierForDeclaration(String declaration) {
