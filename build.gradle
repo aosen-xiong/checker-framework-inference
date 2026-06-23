@@ -165,42 +165,43 @@ task buildDLJC(type: Exec) {
     commandLine './buildDLJC'
 }
 
-test {
-    dependsOn(shadowJar)
-    dependsOn('dist')
+def configureCheckerFrameworkInferenceTest = { Test testTask ->
+    testTask.dependsOn(shadowJar)
+    testTask.dependsOn('dist')
 
-    systemProperties 'path.afu.scripts': "${afu}/scripts",
-    'use.hacks': true
-
-    systemProperties += [JDK_JAR: "${checkerFrameworkPath}/checker/dist/jdk8.jar"]
+    testTask.systemProperties 'path.afu.scripts': "${afu}/scripts",
+    'path.inference.script': "${projectDir}/scripts/inference",
+    'use.hacks': true,
+    JDK_JAR: "${checkerFrameworkPath}/checker/dist/jdk8.jar"
 
     if (project.hasProperty('emit.test.debug')) {
-        systemProperties += ["emit.test.debug": 'true']
+        testTask.systemProperties += ["emit.test.debug": 'true']
     }
 
     if (isJava8) {
-        jvmArgs += [
+        testTask.jvmArgs += [
             "-Xbootclasspath/p:${configurations.javacJar.asPath}"
         ]
     } else {
-        // Without this, the test throw "java.lang.OutOfMemoryError: Java heap space"
+        // Without this, some tests throw "java.lang.OutOfMemoryError: Java heap space".
         // Corresponding pull request: https://github.com/opprop/checker-framework-inference/pull/263
-        forkEvery(1)
-        jvmArgs += compilerArgsForRunningCF
+        testTask.forkEvery(1)
+        testTask.jvmArgs += compilerArgsForRunningCF
     }
 
-    testLogging {
-        // Always run the tests
-        outputs.upToDateWhen { false }
+    // Always run the tests.
+    testTask.outputs.upToDateWhen { false }
+
+    testTask.testLogging {
         // The following prints out each time a test is passed.
         // events "passed", "skipped", "failed", "standardOut", "standardError"
-
+        events "failed"
         // Show the found unexpected diagnostics and expected diagnostics not found.
         exceptionFormat "full"
     }
 
     // After each test, print a summary.
-    afterSuite { desc, result ->
+    testTask.afterSuite { desc, result ->
         if (desc.getClassName() != null) {
             long mils = result.getEndTime() - result.getStartTime()
             double seconds = mils / 1000.0
@@ -362,48 +363,7 @@ afterEvaluate {
 
     // Configure Tests
     tasks.withType(Test) {
-        dependsOn(shadowJar)
-
-        systemProperties 'path.afu.scripts': "${afu}/scripts",
-        'path.inference.script': "${projectDir}/scripts/inference",
-        'use.hacks': true,
-        JDK_JAR: "${checkerFrameworkPath}/checker/dist/jdk8.jar"
-
-        if (project.hasProperty('emit.test.debug')) {
-            systemProperties += ["emit.test.debug": 'true']
-        }
-
-        if (isJava8) {
-            jvmArgs += [
-                "-Xbootclasspath/p:${configurations.javacJar.asPath}"
-            ]
-        } else {
-            jvmArgs += compilerArgsForRunningCF
-        }
-
-        testLogging {
-            // Always run the tests
-            outputs.upToDateWhen { false }
-            // The following prints out each time a test is passed.
-            // events "passed", "skipped", "failed", "standardOut", "standardError"
-            events "failed"
-            // Show the found unexpected diagnostics and expected diagnostics not found.
-            exceptionFormat "full"
-        }
-
-        // After each test, print a summary.
-        afterSuite { desc, result ->
-            if (desc.getClassName() != null) {
-                long mils = result.getEndTime() - result.getStartTime()
-                double seconds = mils / 1000.0
-
-                println "Testsuite: ${desc.getClassName()}\n" +
-                        "Tests run: ${result.testCount}, " +
-                        "Failures: ${result.failedTestCount}, " +
-                        "Skipped: ${result.skippedTestCount}, " +
-                        "Time elapsed: ${seconds} sec\n"
-            }
-        }
+        configureCheckerFrameworkInferenceTest(delegate)
     }
 }
 
