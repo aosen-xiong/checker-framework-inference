@@ -195,12 +195,15 @@ def configureCheckerFrameworkInferenceTest = { Test testTask ->
     testTask.testLogging {
         // The following prints out each time a test is passed.
         // events "passed", "skipped", "failed", "standardOut", "standardError"
-        if (testTask.name == "CheckerDiagnosticCaptureTest"
-                || testTask.name == "RepairDryRunReportTest"
-                || testTask.name == "InferenceFirstPipelineTest"
-                || testTask.name == "MaxSat2TypeSolverUnsatTest"
-                || testTask.name == "InferenceConstraintContextTest"
-                || testTask.name == "InferenceUnsatRepairPipelineTest") {
+        def testsWithPublishedOutput = [
+                "CheckerDiagnosticCaptureTest",
+                "RepairDryRunReportTest",
+                "InferenceFirstPipelineTest",
+                "MaxSat2TypeSolverUnsatTest",
+                "InferenceConstraintContextTest",
+                "InferenceUnsatRepairPipelineTest",
+        ] as Set
+        if (testsWithPublishedOutput.contains(testTask.name)) {
             events "failed", "standardOut", "standardError"
         } else {
             events "failed"
