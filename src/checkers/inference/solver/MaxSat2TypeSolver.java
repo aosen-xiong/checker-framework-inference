@@ -7,6 +7,7 @@ import org.sat4j.maxsat.WeightedMaxSatDecorator;
 import org.sat4j.specs.ContradictionException;
 import org.sat4j.specs.TimeoutException;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,12 +19,11 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 
 import checkers.inference.DefaultInferenceResult;
-import checkers.inference.InferenceMain;
 import checkers.inference.InferenceResult;
 import checkers.inference.InferenceSolver;
-import checkers.inference.SlotManager;
 import checkers.inference.model.ConstantSlot;
 import checkers.inference.model.Constraint;
+import checkers.inference.model.PreferenceConstraint;
 import checkers.inference.model.Slot;
 import checkers.inference.model.serialization.CnfVecIntSerializer;
 
@@ -42,7 +42,7 @@ public class MaxSat2TypeSolver implements InferenceSolver {
     private AnnotationMirror top;
     private AnnotationMirror bottom;
     private CnfVecIntSerializer serializer;
-    private SlotManager slotManager;
+    private int baseSlotCount;
 
     @Override
     public InferenceResult solve(
@@ -58,9 +58,9 @@ public class MaxSat2TypeSolver implements InferenceSolver {
 
         this.top = qualHierarchy.getTopAnnotations().iterator().next();
         this.bottom = qualHierarchy.getBottomAnnotations().iterator().next();
-        this.slotManager = InferenceMain.getInstance().getSlotManager();
+        this.baseSlotCount = maxSlotId(slots);
         this.serializer =
-                new CnfVecIntSerializer(slotManager) {
+                new CnfVecIntSerializer(baseSlotCount) {
                     @Override
                     protected boolean isTop(ConstantSlot constantSlot) {
                         return AnnotationUtils.areSame(constantSlot.getValue(), top);
@@ -74,9 +74,9 @@ public class MaxSat2TypeSolver implements InferenceSolver {
 
     public InferenceResult solve() {
 
-        final List<VecInt> softClauses = new LinkedList<>();
-        final List<VecInt> hardClauses = new LinkedList<>();
-        serializer.convertAll(constraints, hardClauses, softClauses);
+        final EncodedConstraints encodedConstraints = encodeConstraints(constraints);
+        final List<VecInt> hardClauses = encodedConstraints.hardClauses;
+        final List<VecInt> softClauses = encodedConstraints.softClauses;
 
         // nextId describes the LARGEST id that might be found in a variable
         // if an exception occurs while creating a variable the id might be incremented
@@ -89,7 +89,7 @@ public class MaxSat2TypeSolver implements InferenceSolver {
         // and plus the
         // TODO: "fake" slots number stored in existentialToPotentialVar
         final int totalVars =
-                slotManager.getNumberOfSlots() + serializer.getExistentialToPotentialVar().size();
+                baseSlotCount + serializer.getExistentialToPotentialVar().size();
         final int totalClauses = hardClauses.size() + softClauses.size();
 
         // When .newBoth is called, SAT4J will run two solvers and return the result of the first to
@@ -124,10 +124,9 @@ public class MaxSat2TypeSolver implements InferenceSolver {
                             + lastClause
                             + ".");
 
-            // pass empty set as the unsat explanation
-            // TODO: explain UNSAT possibly by reusing
-            // MaxSatSolver.MaxSATUnsatisfiableConstraintExplainer
-            return new DefaultInferenceResult(new HashSet<>());
+            return new DefaultInferenceResult(
+                    explainUnsatisfiableConstraints(
+                            encodedConstraints.hardClauseConstraints, totalVars));
         }
 
         boolean isSatisfiable;
@@ -141,10 +140,9 @@ public class MaxSat2TypeSolver implements InferenceSolver {
 
         if (!isSatisfiable) {
             System.out.println("Not solvable!");
-            // pass empty set as the unsat explanation
-            // TODO: explain UNSAT possibly by reusing
-            // MaxSatSolver.MaxSATUnsatisfiableConstraintExplainer
-            return new DefaultInferenceResult(new HashSet<>());
+            return new DefaultInferenceResult(
+                    explainUnsatisfiableConstraints(
+                            encodedConstraints.hardClauseConstraints, totalVars));
         }
 
         int[] solution = solver.model();
@@ -180,5 +178,75 @@ public class MaxSat2TypeSolver implements InferenceSolver {
         }
 
         return new DefaultInferenceResult(decodedSolution);
+    }
+
+    private EncodedConstraints encodeConstraints(Collection<Constraint> constraints) {
+        EncodedConstraints encodedConstraints = new EncodedConstraints();
+        for (Constraint constraint : constraints) {
+            for (VecInt clause : constraint.serialize(serializer)) {
+                if (clause.size() == 0) {
+                    continue;
+                }
+                if (constraint instanceof PreferenceConstraint) {
+                    encodedConstraints.softClauses.add(clause);
+                } else {
+                    encodedConstraints.hardClauses.add(clause);
+                    encodedConstraints.hardClauseConstraints.add(constraint);
+                }
+            }
+        }
+        return encodedConstraints;
+    }
+
+    private Collection<Constraint> explainUnsatisfiableConstraints(
+            List<Constraint> hardClauseConstraints, int totalVars) {
+        List<Constraint> coreConstraints = new ArrayList<>(hardClauseConstraints);
+
+        int index = 0;
+        while (index < coreConstraints.size()) {
+            List<Constraint> candidate = new ArrayList<>(coreConstraints);
+            candidate.remove(index);
+            EncodedConstraints encodedCandidate = encodeConstraints(candidate);
+            if (!isHardClauseSetSatisfiable(encodedCandidate.hardClauses, totalVars)) {
+                coreConstraints = candidate;
+            } else {
+                index++;
+            }
+        }
+
+        return new HashSet<>(coreConstraints);
+    }
+
+    private boolean isHardClauseSetSatisfiable(List<VecInt> clauses, int totalVars) {
+        final WeightedMaxSatDecorator solver =
+                new WeightedMaxSatDecorator(org.sat4j.pb.SolverFactory.newBoth());
+        solver.newVar(totalVars);
+        solver.setExpectedNumberOfClauses(clauses.size());
+        solver.setTimeoutMs(1000000);
+
+        try {
+            for (VecInt clause : clauses) {
+                solver.addHardClause(clause);
+            }
+            return solver.isSatisfiable();
+        } catch (ContradictionException ce) {
+            return false;
+        } catch (TimeoutException te) {
+            throw new RuntimeException("MAX-SAT solving timeout! ");
+        }
+    }
+
+    private static final class EncodedConstraints {
+        private final List<VecInt> hardClauses = new LinkedList<>();
+        private final List<VecInt> softClauses = new LinkedList<>();
+        private final List<Constraint> hardClauseConstraints = new LinkedList<>();
+    }
+
+    private static int maxSlotId(Collection<Slot> slots) {
+        int maxSlotId = 0;
+        for (Slot slot : slots) {
+            maxSlotId = Math.max(maxSlotId, slot.getId());
+        }
+        return maxSlotId;
     }
 }

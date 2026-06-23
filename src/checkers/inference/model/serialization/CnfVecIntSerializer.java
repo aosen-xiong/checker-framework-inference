@@ -34,7 +34,7 @@ import checkers.inference.model.VariableSlot;
 
 /** */
 public abstract class CnfVecIntSerializer implements Serializer<VecInt[], VecInt[]> {
-    private final SlotManager slotManager;
+    private final int baseSlotCount;
 
     /**
      * var representing whether or not some potential var exists mapped to that potential var
@@ -44,7 +44,11 @@ public abstract class CnfVecIntSerializer implements Serializer<VecInt[], VecInt
     private final Map<Integer, Integer> existentialToPotentialVar = new HashMap<>();
 
     public CnfVecIntSerializer(SlotManager slotManager) {
-        this.slotManager = slotManager;
+        this(slotManager.getNumberOfSlots());
+    }
+
+    public CnfVecIntSerializer(int baseSlotCount) {
+        this.baseSlotCount = baseSlotCount;
     }
 
     public Map<Integer, Integer> getExistentialToPotentialVar() {
@@ -168,7 +172,7 @@ public abstract class CnfVecIntSerializer implements Serializer<VecInt[], VecInt
             // thus by computing sum of total slots number in slot manager
             // and the size of existentialToPotentialVar and plus 1 to get next id of existential Id
             // here
-            existentialId = slotManager.getNumberOfSlots() + existentialToPotentialVar.size() + 1;
+            existentialId = baseSlotCount + existentialToPotentialVar.size() + 1;
             this.existentialToPotentialVar.put(
                     Integer.valueOf(existentialId),
                     Integer.valueOf(constraint.getPotentialVariable().getId()));
