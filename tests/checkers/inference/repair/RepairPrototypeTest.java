@@ -2,6 +2,7 @@ package checkers.inference.repair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import checkers.inference.test.CheckerDiagnosticCapture;
 
@@ -38,11 +39,38 @@ public class RepairPrototypeTest {
                 result.getUnsatCore().get(0).getLabel());
     }
 
+    @Test
+    public void validatesAssignmentRepairCandidate() {
+        RepairValidationResult result =
+                validateFirstCandidate("testdata/repair/AssignmentRepair.java");
+
+        assertTrue(result.getCandidate().getDescription(), result.removesAllDiagnostics());
+        assertEquals(0, result.getCheckerResult().getActualDiagnostics().size());
+    }
+
+    @Test
+    public void validatesMethodCallRepairCandidate() {
+        RepairValidationResult result =
+                validateFirstCandidate("testdata/repair/MethodCallRepair.java");
+
+        assertTrue(result.getCandidate().getDescription(), result.removesAllDiagnostics());
+        assertEquals(0, result.getCheckerResult().getActualDiagnostics().size());
+    }
+
     private static UnsatCoreResult solveFixture(String path) {
         CheckerDiagnosticCapture.Result capture =
                 CheckerDiagnosticCapture.run(NNINF_CHECKER, new File(path), NNINF_OPTIONS);
         List<RepairDiagnostic> diagnostics = RepairDiagnosticAdapter.fromCaptureResult(capture);
         List<RepairConstraint> constraints = new SimpleNninfConstraintExtractor().extract(diagnostics);
         return new SimpleNninfUnsatCoreSolver().solve(constraints);
+    }
+
+    private static RepairValidationResult validateFirstCandidate(String path) {
+        UnsatCoreResult coreResult = solveFixture(path);
+        List<RepairCandidate> candidates = new SimpleNninfRepairPlanner().plan(coreResult);
+        assertEquals(1, candidates.size());
+        return new SimpleNninfRepairValidator(
+                        NNINF_CHECKER, NNINF_OPTIONS, new File("build/repair-prototype"))
+                .validate(candidates.get(0));
     }
 }
