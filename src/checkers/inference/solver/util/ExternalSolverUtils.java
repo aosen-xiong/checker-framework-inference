@@ -24,8 +24,8 @@ public class ExternalSolverUtils {
      * Runs the external solver as given by command and uses the given stdOutHandler and
      * stdErrHandler lambdas to process stdOut and stdErr.
      *
-     * @param command an external solver command to be executed, each string in the array is
-     *     space-concatenated to form the final command.
+     * @param command an external solver command to be executed, with each array entry passed as a
+     *     separate process argument.
      * @param stdOutHandler a lambda which takes a {@link BufferedReader} providing the stdOut of
      *     the external solver and handles the stdOut.
      * @param stdErrHandler a lambda which takes a {@link BufferedReader} providing the stdErr of
@@ -37,14 +37,17 @@ public class ExternalSolverUtils {
             Consumer<BufferedReader> stdOutHandler,
             Consumer<BufferedReader> stdErrHandler) {
 
-        logger.info("Running external solver command \"" + String.join(" ", command) + "\".");
+        String printableCommand = String.join(" ", command);
+        logger.info("Running external solver command \"" + printableCommand + "\".");
 
         // Start the external solver process
         Process process;
         try {
-            process = Runtime.getRuntime().exec(command);
+            process = new ProcessBuilder(command).start();
         } catch (IOException e) {
-            throw new UserError("Could not run external solver.");
+            throw new UserError(
+                    "Could not run external solver command \"%s\": %s",
+                    printableCommand, e.getMessage());
         }
 
         // Create threads to handle stdOut and stdErr
@@ -56,25 +59,15 @@ public class ExternalSolverUtils {
         stdErrHandlerThread.start();
 
         // Wait for external solver threads to finish
-        try {
-            stdOutHandlerThread.join();
-        } catch (InterruptedException e) {
-            throw new BugInCF(
-                    "The threads for handling stdOut of the external solver was interrupted.");
-        }
-
-        try {
-            stdErrHandlerThread.join();
-        } catch (InterruptedException e) {
-            throw new BugInCF(
-                    "The threads for handling stdErr of the external solver was interrupted.");
-        }
+        waitForHandler(stdOutHandlerThread, "stdOut");
+        waitForHandler(stdErrHandlerThread, "stdErr");
 
         int exitStatus;
         try {
             exitStatus = process.waitFor();
         } catch (InterruptedException e) {
-            throw new BugInCF("The threads for the external solver was interrupted.");
+            Thread.currentThread().interrupt();
+            throw new BugInCF("The thread for the external solver was interrupted.");
         }
 
         logger.info("External solver process finished");
@@ -82,13 +75,26 @@ public class ExternalSolverUtils {
         return exitStatus;
     }
 
+    private static void waitForHandler(StdHandlerThread handlerThread, String streamName) {
+        try {
+            handlerThread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new BugInCF(
+                    "The thread for handling %s of the external solver was interrupted.",
+                    streamName);
+        }
+        handlerThread.throwIfFailed(streamName);
+    }
+
     /**
      * A thread which wraps an InputStream in a BufferedReader and tasks the lambda function to
      * handle the outputs.
      */
     private static class StdHandlerThread extends Thread {
-        private InputStream stream;
-        private Consumer<BufferedReader> handler;
+        private final InputStream stream;
+        private final Consumer<BufferedReader> handler;
+        private RuntimeException failure;
 
         public StdHandlerThread(final InputStream stream, final Consumer<BufferedReader> handler) {
             this.stream = stream;
@@ -97,7 +103,18 @@ public class ExternalSolverUtils {
 
         @Override
         public void run() {
-            handler.accept(new BufferedReader(new InputStreamReader(stream)));
+            try {
+                handler.accept(new BufferedReader(new InputStreamReader(stream)));
+            } catch (RuntimeException e) {
+                failure = e;
+            }
+        }
+
+        public void throwIfFailed(String streamName) {
+            if (failure != null) {
+                throw new BugInCF(
+                        failure, "External solver %s handler failed: %s", streamName, failure);
+            }
         }
     }
 
@@ -116,7 +133,7 @@ public class ExternalSolverUtils {
                 stream.println(line);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new BugInCF(e, "Could not read external solver output.");
         }
     }
 }
