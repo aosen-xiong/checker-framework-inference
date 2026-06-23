@@ -15,6 +15,7 @@ import checkers.inference.solver.MaxSat2TypeSolver;
 import checkers.inference.test.InferenceTestUtilities;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Test;
@@ -51,10 +52,14 @@ public class InferenceUnsatRepairPipelineTest {
         assertTrue(
                 candidates.get(0).getTargetSlot().getLocation().contains("InferenceUnsatAssignment"));
 
-        InferenceRepairValidationResult validationResult =
+        InferenceRepairSearchResult searchResult =
                 new SimpleNninfInferenceRepairValidator(
                                 UNSAT_FIXTURE, new File("build/inference-repair-validation"))
-                        .validate(candidates.get(0));
+                        .validateAll(withUnsupportedCandidateFirst(candidates));
+        assertTrue(searchResult.getValidationResults().get(0).hasValidationError());
+
+        InferenceRepairValidationResult validationResult = searchResult.getPassingResult();
+        assertNotNull(validationResult);
 
         for (InferenceRepairAttempt attempt : validationResult.getAttempts()) {
             System.out.println(
@@ -93,6 +98,27 @@ public class InferenceUnsatRepairPipelineTest {
                 repairedSourceText(validationResult.getPassingAttempt())
                         .contains("@NonNull String id = \"\";"));
         assertTrue(validationResult.solvesInference());
+        assertTrue(searchResult.solvesInference());
+    }
+
+    private static List<InferenceRepairCandidate> withUnsupportedCandidateFirst(
+            List<InferenceRepairCandidate> candidates) {
+        List<InferenceRepairCandidate> candidatesWithUnsupported = new ArrayList<>();
+        candidatesWithUnsupported.add(
+                new InferenceRepairCandidate(
+                        candidates.get(0).getConstraintContext(),
+                        new InferenceSlotContext(
+                                99,
+                                "VARIABLE",
+                                true,
+                                "CLASS_DECL",
+                                "ClassDeclLocation( InferenceUnsatAssignment )",
+                                "slot#99"),
+                        InferenceRepairKind.WEAKEN_ANNOTATION,
+                        "@Nullable",
+                        "unsupported class-declaration repair candidate"));
+        candidatesWithUnsupported.addAll(candidates);
+        return candidatesWithUnsupported;
     }
 
     private static String repairedSourceText(InferenceRepairAttempt attempt) {

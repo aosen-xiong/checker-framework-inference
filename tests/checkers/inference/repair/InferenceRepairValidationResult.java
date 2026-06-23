@@ -11,12 +11,27 @@ import java.util.List;
 public final class InferenceRepairValidationResult {
     private final InferenceRepairCandidate candidate;
     private final List<InferenceRepairAttempt> attempts;
+    private final RuntimeException validationError;
 
     public InferenceRepairValidationResult(
             InferenceRepairCandidate candidate,
             List<InferenceRepairAttempt> attempts) {
+        this(candidate, attempts, null);
+    }
+
+    private InferenceRepairValidationResult(
+            InferenceRepairCandidate candidate,
+            List<InferenceRepairAttempt> attempts,
+            RuntimeException validationError) {
         this.candidate = candidate;
         this.attempts = Collections.unmodifiableList(new ArrayList<>(attempts));
+        this.validationError = validationError;
+    }
+
+    public static InferenceRepairValidationResult failed(
+            InferenceRepairCandidate candidate, RuntimeException validationError) {
+        return new InferenceRepairValidationResult(
+                candidate, Collections.<InferenceRepairAttempt>emptyList(), validationError);
     }
 
     public InferenceRepairCandidate getCandidate() {
@@ -37,6 +52,14 @@ public final class InferenceRepairValidationResult {
 
     public List<InferenceRepairAttempt> getAttempts() {
         return attempts;
+    }
+
+    public RuntimeException getValidationError() {
+        return validationError;
+    }
+
+    public boolean hasValidationError() {
+        return validationError != null;
     }
 
     public boolean solvesInference() {

@@ -29,7 +29,7 @@ public final class SimpleNninfInferenceRepairValidator {
         List<InferenceRepairAttempt> attempts = new ArrayList<>();
         InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
         for (InferenceRepairKind repairKind : repairSearchOrder(candidate)) {
-            File repairedSourceFile = repairedSourceFile(repairKind);
+            File repairedSourceFile = repairedSourceFile(candidate, repairKind);
             String appliedEdit = writeRepairedSource(repairedSourceFile, repairKind, target);
             InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
             InferenceRepairAttempt attempt =
@@ -43,9 +43,32 @@ public final class SimpleNninfInferenceRepairValidator {
         return new InferenceRepairValidationResult(candidate, attempts);
     }
 
-    private File repairedSourceFile(InferenceRepairKind repairKind) {
+    public InferenceRepairSearchResult validateAll(List<InferenceRepairCandidate> candidates) {
+        List<InferenceRepairValidationResult> validationResults = new ArrayList<>();
+        for (InferenceRepairCandidate candidate : candidates) {
+            InferenceRepairValidationResult validationResult;
+            try {
+                validationResult = validate(candidate);
+            } catch (IllegalArgumentException e) {
+                validationResult = InferenceRepairValidationResult.failed(candidate, e);
+            }
+            validationResults.add(validationResult);
+            if (validationResult.solvesInference()) {
+                break;
+            }
+        }
+        return new InferenceRepairSearchResult(validationResults);
+    }
+
+    private File repairedSourceFile(
+            InferenceRepairCandidate candidate, InferenceRepairKind repairKind) {
         return new File(
-                new File(outputDirectory, repairKind.name().toLowerCase()),
+                new File(
+                        outputDirectory,
+                        "slot_"
+                                + candidate.getTargetSlot().getId()
+                                + File.separator
+                                + repairKind.name().toLowerCase()),
                 originalSourceFile.getName());
     }
 
