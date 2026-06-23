@@ -7,16 +7,19 @@ import java.io.File;
 /** One attempted source edit and its inference rerun result. */
 public final class InferenceRepairAttempt {
     private final InferenceRepairKind repairKind;
+    private final InferenceRepairTarget target;
     private final File repairedSourceFile;
     private final String appliedEdit;
     private final InferenceRunSnapshot snapshot;
 
     public InferenceRepairAttempt(
             InferenceRepairKind repairKind,
+            InferenceRepairTarget target,
             File repairedSourceFile,
             String appliedEdit,
             InferenceRunSnapshot snapshot) {
         this.repairKind = repairKind;
+        this.target = target;
         this.repairedSourceFile = repairedSourceFile;
         this.appliedEdit = appliedEdit;
         this.snapshot = snapshot;
@@ -24,6 +27,10 @@ public final class InferenceRepairAttempt {
 
     public InferenceRepairKind getRepairKind() {
         return repairKind;
+    }
+
+    public InferenceRepairTarget getTarget() {
+        return target;
     }
 
     public File getRepairedSourceFile() {

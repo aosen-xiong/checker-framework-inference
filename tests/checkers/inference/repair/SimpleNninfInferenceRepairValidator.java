@@ -16,6 +16,7 @@ import java.util.List;
 public final class SimpleNninfInferenceRepairValidator {
     private final File originalSourceFile;
     private final File outputDirectory;
+    private final InferenceRepairTargetExtractor targetExtractor = new InferenceRepairTargetExtractor();
 
     public SimpleNninfInferenceRepairValidator(File originalSourceFile, File outputDirectory) {
         this.originalSourceFile = originalSourceFile;
@@ -24,13 +25,14 @@ public final class SimpleNninfInferenceRepairValidator {
 
     public InferenceRepairValidationResult validate(InferenceRepairCandidate candidate) {
         List<InferenceRepairAttempt> attempts = new ArrayList<>();
+        InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
         for (InferenceRepairKind repairKind : repairSearchOrder(candidate)) {
             File repairedSourceFile = repairedSourceFile(repairKind);
-            String appliedEdit = writeRepairedSource(repairedSourceFile, repairKind);
+            String appliedEdit = writeRepairedSource(repairedSourceFile, repairKind, target);
             InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
             InferenceRepairAttempt attempt =
                     new InferenceRepairAttempt(
-                            repairKind, repairedSourceFile, appliedEdit, snapshot);
+                            repairKind, target, repairedSourceFile, appliedEdit, snapshot);
             attempts.add(attempt);
             if (attempt.solvesInference()) {
                 break;
@@ -54,7 +56,8 @@ public final class SimpleNninfInferenceRepairValidator {
         return repairKinds;
     }
 
-    private String writeRepairedSource(File repairedSourceFile, InferenceRepairKind repairKind) {
+    private String writeRepairedSource(
+            File repairedSourceFile, InferenceRepairKind repairKind, InferenceRepairTarget target) {
         File parentDirectory = repairedSourceFile.getParentFile();
         if (!parentDirectory.exists() && !parentDirectory.mkdirs()) {
             throw new IllegalStateException(
@@ -64,9 +67,8 @@ public final class SimpleNninfInferenceRepairValidator {
 
         List<String> originalLines = InferenceTestUtilities.getLines(originalSourceFile);
         List<String> repairedLines = new ArrayList<>();
-        boolean changed = false;
         for (String line : originalLines) {
-            if (!changed && line.contains("@NonNull String") && line.contains("=")) {
+            if (repairedLines.size() + 1 == target.getLineNumber()) {
                 if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
                     repairedLines.add(nullGuardFor(line));
                 } else if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
@@ -74,14 +76,8 @@ public final class SimpleNninfInferenceRepairValidator {
                 } else {
                     line = weakenAnnotation(line);
                 }
-                changed = true;
             }
             repairedLines.add(line);
-        }
-        if (!changed) {
-            throw new IllegalArgumentException(
-                    "Could not apply inference repair: no @NonNull String target found in "
-                            + originalSourceFile);
         }
 
         InferenceTestUtilities.writeLines(repairedLines, repairedSourceFile);

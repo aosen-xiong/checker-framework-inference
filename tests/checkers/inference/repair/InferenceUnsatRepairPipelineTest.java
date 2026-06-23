@@ -59,6 +59,8 @@ public class InferenceUnsatRepairPipelineTest {
             System.out.println(
                     "attempt: "
                             + attempt.getRepairKind()
+                            + " target="
+                            + attempt.getTarget().summarize()
                             + " -> solved="
                             + attempt.solvesInference()
                             + ", edit="
@@ -69,6 +71,14 @@ public class InferenceUnsatRepairPipelineTest {
         assertEquals(
                 InferenceRepairKind.INSERT_NULL_GUARD,
                 validationResult.getAttempts().get(0).getRepairKind());
+        assertEquals("VARIABLE", validationResult.getAttempts().get(0).getTarget().getTreeKind());
+        assertTrue(
+                validationResult
+                        .getAttempts()
+                        .get(0)
+                        .getTarget()
+                        .getOriginalText()
+                        .contains("@NonNull String id = maybeId"));
         assertFalse(validationResult.getAttempts().get(0).solvesInference());
         assertEquals(
                 InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK,
