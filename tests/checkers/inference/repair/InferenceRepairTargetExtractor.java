@@ -1,10 +1,13 @@
 package checkers.inference.repair;
 
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.AssignmentTree;
+import com.sun.source.tree.ExpressionStatementTree;
+import com.sun.source.tree.MemberSelectTree;
+import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreeScanner;
@@ -28,25 +31,26 @@ public final class InferenceRepairTargetExtractor {
             Pattern.compile("Block\\.statement\\s+(\\d+)");
 
     public InferenceRepairTarget extract(File sourceFile, InferenceRepairCandidate candidate) {
-        int blockStatementIndex = blockStatementIndex(candidate.getTargetSlot().getLocation());
+        String location = candidate.getTargetSlot().getLocation();
+        int blockStatementIndex = blockStatementIndex(location);
         ParsedUnit parsedUnit = parse(sourceFile);
-        LocalVariableFinder finder = new LocalVariableFinder(blockStatementIndex);
+        StatementFinder finder = new StatementFinder(blockStatementIndex);
         finder.scan(parsedUnit.compilationUnit, null);
-        VariableTree variableTree = finder.getFoundVariable();
-        if (variableTree == null) {
+        Tree targetTree = resolvePathSuffix(finder.getFoundStatement(), location);
+        if (targetTree == null) {
             throw new IllegalArgumentException(
                     "Could not resolve repair target from " + candidate.getTargetSlot().getLocation());
         }
 
         long start =
                 parsedUnit.sourcePositions.getStartPosition(
-                        parsedUnit.compilationUnit, variableTree);
+                        parsedUnit.compilationUnit, targetTree);
         long end =
                 parsedUnit.sourcePositions.getEndPosition(
-                        parsedUnit.compilationUnit, variableTree);
+                        parsedUnit.compilationUnit, targetTree);
         return new InferenceRepairTarget(
                 sourceFile,
-                variableTree.getKind().name(),
+                targetTree.getKind().name(),
                 start,
                 end,
                 parsedUnit.compilationUnit.getLineMap().getLineNumber(start),
@@ -60,6 +64,30 @@ public final class InferenceRepairTargetExtractor {
             throw new IllegalArgumentException("No Block.statement index in location: " + location);
         }
         return Integer.parseInt(matcher.group(1));
+    }
+
+    private static Tree resolvePathSuffix(StatementTree statement, String location) {
+        if (statement == null) {
+            return null;
+        }
+        Tree target = statement;
+        if (location.contains("ExpressionStatement.expression")
+                && target instanceof ExpressionStatementTree) {
+            target = ((ExpressionStatementTree) target).getExpression();
+        }
+        if (location.contains("Assignment.variable") && target instanceof AssignmentTree) {
+            target = ((AssignmentTree) target).getVariable();
+        } else if (location.contains("Assignment.expression") && target instanceof AssignmentTree) {
+            target = ((AssignmentTree) target).getExpression();
+        }
+        if (location.contains("MethodInvocation.methodSelect")
+                && target instanceof MethodInvocationTree) {
+            target = ((MethodInvocationTree) target).getMethodSelect();
+        }
+        if (location.contains("MemberSelect.expression") && target instanceof MemberSelectTree) {
+            target = ((MemberSelectTree) target).getExpression();
+        }
+        return target;
     }
 
     private static ParsedUnit parse(File sourceFile) {
@@ -94,18 +122,18 @@ public final class InferenceRepairTargetExtractor {
         return source.substring((int) start, (int) end).trim();
     }
 
-    private static final class LocalVariableFinder extends TreeScanner<VariableTree, Void> {
+    private static final class StatementFinder extends TreeScanner<StatementTree, Void> {
         private final int targetStatementIndex;
-        private VariableTree foundVariable;
+        private StatementTree foundStatement;
 
-        private LocalVariableFinder(int targetStatementIndex) {
+        private StatementFinder(int targetStatementIndex) {
             this.targetStatementIndex = targetStatementIndex;
         }
 
         @Override
-        public VariableTree visitMethod(MethodTree methodTree, Void unused) {
-            if (foundVariable != null) {
-                return foundVariable;
+        public StatementTree visitMethod(MethodTree methodTree, Void unused) {
+            if (foundStatement != null) {
+                return foundStatement;
             }
             if (methodTree.getBody() == null) {
                 return null;
@@ -114,16 +142,12 @@ public final class InferenceRepairTargetExtractor {
             if (targetStatementIndex >= statements.size()) {
                 return super.visitMethod(methodTree, unused);
             }
-            StatementTree statement = statements.get(targetStatementIndex);
-            if (statement.getKind() == Tree.Kind.VARIABLE) {
-                foundVariable = (VariableTree) statement;
-                return foundVariable;
-            }
-            return super.visitMethod(methodTree, unused);
+            foundStatement = statements.get(targetStatementIndex);
+            return foundStatement;
         }
 
-        private VariableTree getFoundVariable() {
-            return foundVariable;
+        private StatementTree getFoundStatement() {
+            return foundStatement;
         }
     }
 
