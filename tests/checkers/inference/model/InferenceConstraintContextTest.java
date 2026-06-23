@@ -8,6 +8,7 @@ import checkers.inference.DefaultInferenceResult;
 import checkers.inference.InferenceRunSnapshot;
 import checkers.inference.repair.InferenceConstraintContext;
 import checkers.inference.repair.InferenceRepairCandidate;
+import checkers.inference.repair.InferenceRepairKind;
 import checkers.inference.repair.InferenceConstraintReport;
 import checkers.inference.repair.InferenceSlotContext;
 import checkers.inference.repair.InferenceSnapshotReporter;
@@ -86,6 +87,51 @@ public class InferenceConstraintContextTest {
 
         System.out.println("=== inference-context repair candidate example ===");
         System.out.println(candidate.summarize());
+    }
+
+    @Test
+    public void ranksSourceExpressionRepairBeforeAnnotationWeakening() {
+        InferenceConstraintContext annotationContext =
+                new InferenceConstraintContext(
+                        "EqualityConstraint",
+                        "slot#1 == @Nullable",
+                        "CLASS_DECL",
+                        "ClassDeclLocation( repair.Example )",
+                        Arrays.asList(
+                                new InferenceSlotContext(
+                                        1,
+                                        "VARIABLE",
+                                        true,
+                                        "CLASS_DECL",
+                                        "ClassDeclLocation( repair.Example )",
+                                        "slot#1")));
+        InferenceConstraintContext expressionContext =
+                new InferenceConstraintContext(
+                        "InequalityConstraint",
+                        "slot#2 ? @Nullable",
+                        "AST_PATH",
+                        "AstPathLocation( repair.Example.m()V.null:repair.Example:m()V::"
+                                + "Method.body, Block.statement 0, ExpressionStatement.expression,"
+                                + " Assignment.expression )",
+                        Arrays.asList(
+                                new InferenceSlotContext(
+                                        2,
+                                        "REFINEMENT_VARIABLE",
+                                        false,
+                                        "AST_PATH",
+                                        "AstPathLocation( repair.Example.m()V.null:repair.Example:m()V::"
+                                                + "Method.body, Block.statement 0 )",
+                                        "slot#2")));
+
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(Arrays.asList(annotationContext, expressionContext));
+
+        assertEquals(2, candidates.size());
+        assertEquals(InferenceRepairKind.INSERT_NULL_GUARD, candidates.get(0).getRepairKind());
+        assertEquals(2, candidates.get(0).getTargetSlot().getId());
+        assertEquals(InferenceRepairKind.WEAKEN_ANNOTATION, candidates.get(1).getRepairKind());
+        assertEquals(1, candidates.get(1).getTargetSlot().getId());
     }
 
     private static final class TestVariableSlot extends VariableSlot {
