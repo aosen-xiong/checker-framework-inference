@@ -200,7 +200,7 @@ public class InferenceTestConfigurationBuilder {
             String pathToAfuScripts,
             String pathToInferenceScript) {
 
-        final File defaultInferenceOutDir = new File("testdata/tmp");
+        final File defaultInferenceOutDir = defaultInferenceOutputDir(testSourcePath, testFile);
         final File defaultOutputJaif = new File(defaultInferenceOutDir, "default.jaif");
         final File defaultAnnotatedSourceDir = new File(defaultInferenceOutDir, "annotated-source");
 
@@ -228,5 +228,12 @@ public class InferenceTestConfigurationBuilder {
         }
 
         return configBuilder.validateThenBuild();
+    }
+
+    private static File defaultInferenceOutputDir(String testSourcePath, File testFile) {
+        String testPath = testSourcePath + File.separator + testFile.getPath();
+        String sanitizedTestPath =
+                testPath.replace(File.separatorChar, '-').replaceAll("[^A-Za-z0-9._-]", "_");
+        return new File(new File("build", "inference-tests"), sanitizedTestPath);
     }
 }

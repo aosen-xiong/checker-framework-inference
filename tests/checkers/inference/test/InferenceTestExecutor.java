@@ -64,8 +64,7 @@ public class InferenceTestExecutor {
     public static InferenceResult infer(InferenceTestConfiguration configuration) {
         TestConfiguration initialConfig = configuration.getInitialTypecheckConfig();
 
-        ensureDirectoryExists(configuration.getAnnotatedSourceDir());
-        ensureParentDirectoryExists(configuration.getOutputJaif());
+        prepareInferenceOutputDirectory(configuration);
         ensureDirectoryExists(new File(initialConfig.getOptions().get("-d")));
 
         if (initialConfig.getProcessors().size() != 1) {
@@ -123,6 +122,15 @@ public class InferenceTestExecutor {
         return new InferenceResult(configuration, inferenceOut.toString(), result != 0);
     }
 
+    static void prepareInferenceOutputDirectory(InferenceTestConfiguration configuration) {
+        File outputDir = configuration.getOutputJaif().getParentFile();
+        if (outputDir != null) {
+            deleteRecursively(outputDir);
+        }
+        ensureDirectoryExists(configuration.getAnnotatedSourceDir());
+        ensureParentDirectoryExists(configuration.getOutputJaif());
+    }
+
     public static InsertionResult insertAnnotations(InferenceTestConfiguration configuration) {
         String pathToAfuScripts =
                 configuration.getPathToAfuScripts().equals("")
@@ -149,10 +157,28 @@ public class InferenceTestExecutor {
     }
 
     private static void ensureParentDirectoryExists(File path) {
-        if (!path.getParentFile().exists()) {
-            if (!path.mkdirs()) {
-                throw new RuntimeException("Could not make directory: " + path.getAbsolutePath());
+        File parent = path.getParentFile();
+        if (parent != null) {
+            ensureDirectoryExists(parent);
+        }
+    }
+
+    private static void deleteRecursively(File path) {
+        if (!path.exists()) {
+            return;
+        }
+
+        if (path.isDirectory()) {
+            File[] children = path.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
             }
+        }
+
+        if (!path.delete()) {
+            throw new RuntimeException("Could not delete: " + path.getAbsolutePath());
         }
     }
 
