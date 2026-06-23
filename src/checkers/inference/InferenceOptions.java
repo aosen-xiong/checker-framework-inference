@@ -234,7 +234,7 @@ public class InferenceOptions {
                             "You cannot specify both an Annotation File Utilities output directory (--afuOutputDir or -afud) and --inPlace.");
                 }
 
-                if (afuOptions != null && afuOptions.contains("\\s-d\\s")) {
+                if (afuOptions != null && containsAfuOutputDirectoryOption(afuOptions)) {
                     errors.add(
                             "Annotation File Utilities output dir must be specified via (--afuOutputDir or -afud) not -d in AFU Options.");
                 }
@@ -375,6 +375,20 @@ public class InferenceOptions {
 
     private static boolean isJavaFile(String arg) {
         return arg.endsWith(".java") && new File(arg).exists();
+    }
+
+    static boolean containsAfuOutputDirectoryOption(String options) {
+        for (String option : Options.tokenize(options)) {
+            if (option.equals("-d")
+                    || option.startsWith("-d=")
+                    || option.equals("--outdir")
+                    || option.startsWith("--outdir=")
+                    || option.equals("--directory")
+                    || option.startsWith("--directory=")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class InitStatus {
