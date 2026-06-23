@@ -1,7 +1,9 @@
 package checkers.inference.repair;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Summary of real constraints produced by one inference run. */
@@ -13,6 +15,7 @@ public final class InferenceConstraintReport {
     private final Map<String, Integer> constraintCountsByType;
     private final boolean solverHadSolution;
     private final int unsatConstraintCount;
+    private final List<InferenceConstraintContext> unsatConstraintContexts;
 
     public InferenceConstraintReport(
             int slotCount,
@@ -21,7 +24,8 @@ public final class InferenceConstraintReport {
             int locatedConstraintCount,
             Map<String, Integer> constraintCountsByType,
             boolean solverHadSolution,
-            int unsatConstraintCount) {
+            int unsatConstraintCount,
+            List<InferenceConstraintContext> unsatConstraintContexts) {
         this.slotCount = slotCount;
         this.insertableSlotCount = insertableSlotCount;
         this.constraintCount = constraintCount;
@@ -30,6 +34,8 @@ public final class InferenceConstraintReport {
                 Collections.unmodifiableMap(new LinkedHashMap<>(constraintCountsByType));
         this.solverHadSolution = solverHadSolution;
         this.unsatConstraintCount = unsatConstraintCount;
+        this.unsatConstraintContexts =
+                Collections.unmodifiableList(new ArrayList<>(unsatConstraintContexts));
     }
 
     public int getSlotCount() {
@@ -60,6 +66,10 @@ public final class InferenceConstraintReport {
         return unsatConstraintCount;
     }
 
+    public List<InferenceConstraintContext> getUnsatConstraintContexts() {
+        return unsatConstraintContexts;
+    }
+
     public String summarize() {
         return "slots="
                 + slotCount
@@ -73,7 +83,17 @@ public final class InferenceConstraintReport {
                 + solverHadSolution
                 + ", unsatConstraints="
                 + unsatConstraintCount
+                + ", unsatConstraintContexts="
+                + summarizeUnsatContexts()
                 + ", byType="
                 + constraintCountsByType;
+    }
+
+    private List<String> summarizeUnsatContexts() {
+        List<String> summaries = new ArrayList<>();
+        for (InferenceConstraintContext context : unsatConstraintContexts) {
+            summaries.add(context.summarize());
+        }
+        return summaries;
     }
 }

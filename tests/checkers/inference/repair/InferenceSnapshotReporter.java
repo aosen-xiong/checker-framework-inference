@@ -6,7 +6,9 @@ import checkers.inference.model.Constraint;
 import checkers.inference.model.Slot;
 
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Creates repair-oriented summaries from real inference snapshots. */
@@ -33,6 +35,10 @@ public final class InferenceSnapshotReporter {
         }
 
         Collection<Constraint> unsatConstraints = snapshot.getUnsatisfiableConstraints();
+        List<InferenceConstraintContext> unsatConstraintContexts = new ArrayList<>();
+        for (Constraint constraint : unsatConstraints) {
+            unsatConstraintContexts.add(InferenceConstraintContextFormatter.format(constraint));
+        }
         return new InferenceConstraintReport(
                 snapshot.getSlots().size(),
                 insertableSlotCount,
@@ -40,6 +46,7 @@ public final class InferenceSnapshotReporter {
                 locatedConstraintCount,
                 constraintCountsByType,
                 snapshot.hasSolution(),
-                unsatConstraints.size());
+                unsatConstraints.size(),
+                unsatConstraintContexts);
     }
 }
