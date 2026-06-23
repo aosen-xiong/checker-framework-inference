@@ -39,4 +39,30 @@ public class CheckerDiagnosticCaptureTest {
         assertEquals(2, result.getExpectedDiagnostics().size());
         assertEquals(2, result.getActualDiagnostics().size());
     }
+
+    @Test
+    public void capturesRepairAssignmentFixtureDiagnostics() {
+        CheckerDiagnosticCapture.Result result =
+                CheckerDiagnosticCapture.run(
+                        NNINF_CHECKER,
+                        new File("testdata/repair/AssignmentRepair.java"),
+                        NNINF_OPTIONS);
+
+        assertFalse(result.summarize(), result.didTestFail());
+        assertEquals(1, result.getExpectedDiagnostics().size());
+        assertEquals(1, result.getActualDiagnostics().size());
+    }
+
+    @Test
+    public void capturesRepairMethodCallFixtureDiagnostics() {
+        CheckerDiagnosticCapture.Result result =
+                CheckerDiagnosticCapture.run(
+                        NNINF_CHECKER,
+                        new File("testdata/repair/MethodCallRepair.java"),
+                        NNINF_OPTIONS);
+
+        assertFalse(result.summarize(), result.didTestFail());
+        assertEquals(1, result.getExpectedDiagnostics().size());
+        assertEquals(1, result.getActualDiagnostics().size());
+    }
 }
