@@ -6,6 +6,7 @@ import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.SystemUtil;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -105,6 +106,9 @@ public class InferenceMain {
 
     // Hold the results of solving.
     private InferenceResult solverResult;
+
+    // Hold a snapshot of the most recent solve attempt for tests and repair tooling.
+    private InferenceRunSnapshot runSnapshot;
 
     // Turn off some of the checks so that more bodies of code pass.
     // Eventually we will get rid of this.
@@ -232,8 +236,14 @@ public class InferenceMain {
      * output file can be configured by the command-line argument jaiffile.
      */
     private void writeJaif() {
+        File jaifFile = new File(InferenceOptions.jaifFile);
+        File parentFile = jaifFile.getParentFile();
+        if (parentFile != null && !parentFile.exists() && !parentFile.mkdirs()) {
+            logger.severe("Failed to create JAIF output directory: " + parentFile);
+            return;
+        }
         try (PrintWriter writer =
-                new PrintWriter(new FileOutputStream(InferenceOptions.jaifFile))) {
+                new PrintWriter(new FileOutputStream(jaifFile))) {
 
             List<VariableSlot> varSlots = slotManager.getVariableSlots();
             Map<AnnotationLocation, String> values = new HashMap<>();
@@ -296,7 +306,14 @@ public class InferenceMain {
                             normalizedConstraints,
                             getRealTypeFactory().getQualifierHierarchy(),
                             inferenceChecker.getProcessingEnvironment());
+            this.runSnapshot =
+                    new InferenceRunSnapshot(
+                            slotManager.getSlots(), normalizedConstraints, solverResult);
         }
+    }
+
+    public InferenceRunSnapshot getRunSnapshot() {
+        return runSnapshot;
     }
 
     private @Nullable AnnotationMirror getAnnotationToWrite(VariableSlot slot) {
