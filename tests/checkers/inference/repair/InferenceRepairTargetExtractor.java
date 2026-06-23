@@ -79,6 +79,9 @@ public final class InferenceRepairTargetExtractor {
             target = ((AssignmentTree) target).getVariable();
         } else if (location.contains("Assignment.expression") && target instanceof AssignmentTree) {
             target = ((AssignmentTree) target).getExpression();
+        } else if (location.contains("ExpressionStatement.expression")
+                && target instanceof AssignmentTree) {
+            target = ((AssignmentTree) target).getExpression();
         }
         if (location.contains("MethodInvocation.methodSelect")
                 && target instanceof MethodInvocationTree) {

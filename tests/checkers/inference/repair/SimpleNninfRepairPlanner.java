@@ -42,7 +42,7 @@ public final class SimpleNninfRepairPlanner {
                 candidates.add(
                         new InferenceRepairCandidate(
                                 context,
-                                targetSlot,
+                                sourceRepairTargetSlot(context, targetSlot),
                                 InferenceRepairKind.INSERT_NULL_GUARD,
                                 NULLABLE,
                                 "repair source expression causing @Nullable conflict"));
@@ -60,6 +60,20 @@ public final class SimpleNninfRepairPlanner {
             }
         }
         return null;
+    }
+
+    private static InferenceSlotContext sourceRepairTargetSlot(
+            InferenceConstraintContext context, InferenceSlotContext slot) {
+        if ("AST_PATH".equals(context.getLocationKind())) {
+            return new InferenceSlotContext(
+                    slot.getId(),
+                    slot.getKind(),
+                    slot.isInsertable(),
+                    context.getLocationKind(),
+                    context.getLocation(),
+                    slot.getDescription());
+        }
+        return slot;
     }
 
     private static InferenceSlotContext firstSourceLocatedInferenceSlot(

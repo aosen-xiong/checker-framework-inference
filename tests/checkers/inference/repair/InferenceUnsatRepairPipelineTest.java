@@ -23,6 +23,8 @@ import org.junit.Test;
 public class InferenceUnsatRepairPipelineTest {
     private static final File UNSAT_FIXTURE =
             new File("testdata/repair/InferenceUnsatAssignment.java");
+    private static final File FIELD_ASSIGNMENT_UNSAT_FIXTURE =
+            new File("testdata/repair/InferenceUnsatFieldAssignment.java");
 
     @Test
     public void plansRepairCandidateFromRealUnsatInferenceRun() {
@@ -98,6 +100,37 @@ public class InferenceUnsatRepairPipelineTest {
                 repairedSourceText(validationResult.getPassingAttempt())
                         .contains("@NonNull String id = \"\";"));
         assertTrue(validationResult.solvesInference());
+        assertTrue(searchResult.solvesInference());
+    }
+
+    @Test
+    public void repairsRealUnsatFieldAssignmentExpression() {
+        InferenceRunSnapshot snapshot =
+                runInference(FIELD_ASSIGNMENT_UNSAT_FIXTURE, "field-assignment");
+        assertNotNull(snapshot);
+        assertFalse(snapshot.hasSolution());
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(report.getUnsatConstraintContexts());
+        assertFalse(candidates.isEmpty());
+
+        InferenceRepairSearchResult searchResult =
+                new SimpleNninfInferenceRepairValidator(
+                                FIELD_ASSIGNMENT_UNSAT_FIXTURE,
+                                new File("build/inference-field-assignment-repair-validation"))
+                        .validateAll(candidates);
+
+        InferenceRepairValidationResult validationResult = searchResult.getPassingResult();
+        assertNotNull(validationResult);
+        InferenceRepairAttempt passingAttempt = validationResult.getPassingAttempt();
+        assertEquals(
+                InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK,
+                passingAttempt.getRepairKind());
+        assertEquals("IDENTIFIER", passingAttempt.getTarget().getTreeKind());
+        assertEquals("maybeId", passingAttempt.getTarget().getOriginalText());
+        assertTrue(repairedSourceText(passingAttempt).contains("id = \"\";"));
         assertTrue(searchResult.solvesInference());
     }
 

@@ -28,7 +28,7 @@ public final class SimpleNninfInferenceRepairValidator {
     public InferenceRepairValidationResult validate(InferenceRepairCandidate candidate) {
         List<InferenceRepairAttempt> attempts = new ArrayList<>();
         InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
-        for (InferenceRepairKind repairKind : repairSearchOrder(candidate)) {
+        for (InferenceRepairKind repairKind : repairSearchOrder(candidate, target)) {
             File repairedSourceFile = repairedSourceFile(candidate, repairKind);
             String appliedEdit = writeRepairedSource(repairedSourceFile, repairKind, target);
             InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
@@ -72,13 +72,22 @@ public final class SimpleNninfInferenceRepairValidator {
                 originalSourceFile.getName());
     }
 
-    private List<InferenceRepairKind> repairSearchOrder(InferenceRepairCandidate candidate) {
+    private List<InferenceRepairKind> repairSearchOrder(
+            InferenceRepairCandidate candidate, InferenceRepairTarget target) {
         List<InferenceRepairKind> repairKinds = new ArrayList<>();
-        repairKinds.add(candidate.getRepairKind());
+        if (supportsRepairKind(candidate.getRepairKind(), target)) {
+            repairKinds.add(candidate.getRepairKind());
+        }
         if (!repairKinds.contains(InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK)) {
             repairKinds.add(InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK);
         }
         return repairKinds;
+    }
+
+    private static boolean supportsRepairKind(
+            InferenceRepairKind repairKind, InferenceRepairTarget target) {
+        return repairKind != InferenceRepairKind.INSERT_NULL_GUARD
+                || "VARIABLE".equals(target.getTreeKind());
     }
 
     private String writeRepairedSource(
@@ -136,6 +145,9 @@ public final class SimpleNninfInferenceRepairValidator {
     }
 
     private static String replaceRhsWithNonNullFallback(String targetSource) {
+        if (!targetSource.contains("=")) {
+            return "\"\"";
+        }
         return targetSource.substring(0, targetSource.indexOf('=') + 1) + " \"\";";
     }
 

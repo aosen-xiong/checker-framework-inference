@@ -39,6 +39,21 @@ public class InferenceRepairTargetExtractorTest {
     }
 
     @Test
+    public void resolvesAssignmentExpressionTargetWhenPathStopsAtAssignment() {
+        InferenceRepairTarget target =
+                extractor.extract(
+                        new File("testdata/repair/InferenceUnsatFieldAssignment.java"),
+                        candidateWithLocation(
+                                "AstPathLocation( InferenceUnsatFieldAssignment.setId(Ljava/lang/String;)V.null:"
+                                        + "InferenceUnsatFieldAssignment:setId(Ljava/lang/String;)V::"
+                                        + "Method.body, Block.statement 0,"
+                                        + " ExpressionStatement.expression )"));
+
+        assertEquals("IDENTIFIER", target.getTreeKind());
+        assertEquals("maybeId", target.getOriginalText());
+    }
+
+    @Test
     public void resolvesMethodInvocationSelectTarget() {
         InferenceRepairTarget target =
                 extractor.extract(
