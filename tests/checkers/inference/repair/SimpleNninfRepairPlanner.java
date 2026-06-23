@@ -99,13 +99,30 @@ public final class SimpleNninfRepairPlanner {
         }
 
         private static int rank(InferenceRepairCandidate candidate) {
+            int sourceRank = sourceLocationRank(candidate);
             if (candidate.getRepairKind() == InferenceRepairKind.INSERT_NULL_GUARD) {
-                return 0;
+                return sourceRank;
             }
             if (candidate.getRepairKind() == InferenceRepairKind.WEAKEN_ANNOTATION) {
+                return 100 + sourceRank;
+            }
+            return 200 + sourceRank;
+        }
+
+        private static int sourceLocationRank(InferenceRepairCandidate candidate) {
+            String location = candidate.getTargetSlot().getLocation();
+            if (location.contains("MethodInvocation.argument")) {
+                return 0;
+            }
+            if (location.contains("ExpressionStatement.expression")
+                    && !location.contains("MethodInvocation.methodSelect")) {
                 return 1;
             }
-            return 2;
+            if (location.contains("MethodInvocation.methodSelect")
+                    || location.contains("MemberSelect.expression")) {
+                return 20;
+            }
+            return 10;
         }
     }
 }

@@ -68,6 +68,37 @@ public class InferenceRepairTargetExtractorTest {
         assertEquals("recordId", target.getOriginalText());
     }
 
+    @Test
+    public void resolvesMethodInvocationArgumentTarget() {
+        InferenceRepairTarget target =
+                extractor.extract(
+                        new File("testdata/repair/InferenceUnsatMethodCall.java"),
+                        candidateWithLocation(
+                                "AstPathLocation( InferenceUnsatMethodCall.setId(Ljava/lang/String;)V.null:"
+                                        + "InferenceUnsatMethodCall:setId(Ljava/lang/String;)V::"
+                                        + "Method.body, Block.statement 0,"
+                                        + " ExpressionStatement.expression,"
+                                        + " MethodInvocation.argument 0 )"));
+
+        assertEquals("IDENTIFIER", target.getTreeKind());
+        assertEquals("maybeId", target.getOriginalText());
+    }
+
+    @Test
+    public void resolvesSingleArgumentWhenPathStopsAtMethodInvocation() {
+        InferenceRepairTarget target =
+                extractor.extract(
+                        new File("testdata/repair/InferenceUnsatMethodCall.java"),
+                        candidateWithLocation(
+                                "AstPathLocation( InferenceUnsatMethodCall.setId(Ljava/lang/String;)V.null:"
+                                        + "InferenceUnsatMethodCall:setId(Ljava/lang/String;)V::"
+                                        + "Method.body, Block.statement 0,"
+                                        + " ExpressionStatement.expression )"));
+
+        assertEquals("IDENTIFIER", target.getTreeKind());
+        assertEquals("maybeId", target.getOriginalText());
+    }
+
     private static InferenceRepairCandidate candidateWithLocation(String location) {
         return new InferenceRepairCandidate(
                 null,

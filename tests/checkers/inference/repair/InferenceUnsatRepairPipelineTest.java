@@ -25,6 +25,8 @@ public class InferenceUnsatRepairPipelineTest {
             new File("testdata/repair/InferenceUnsatAssignment.java");
     private static final File FIELD_ASSIGNMENT_UNSAT_FIXTURE =
             new File("testdata/repair/InferenceUnsatFieldAssignment.java");
+    private static final File METHOD_CALL_UNSAT_FIXTURE =
+            new File("testdata/repair/InferenceUnsatMethodCall.java");
 
     @Test
     public void plansRepairCandidateFromRealUnsatInferenceRun() {
@@ -43,13 +45,14 @@ public class InferenceUnsatRepairPipelineTest {
 
         List<InferenceRepairCandidate> candidates =
                 new SimpleNninfRepairPlanner()
-                        .planFromInferenceContexts(report.getUnsatConstraintContexts());
+                        .planFromInferenceContexts(report.getRepairConstraintContexts());
 
         for (InferenceRepairCandidate candidate : candidates) {
             System.out.println("candidate: " + candidate.summarize());
         }
 
         assertFalse(report.getUnsatConstraintContexts().isEmpty());
+        assertFalse(report.getRepairConstraintContexts().isEmpty());
         assertFalse(candidates.isEmpty());
         assertTrue(
                 candidates.get(0).getTargetSlot().getLocation().contains("InferenceUnsatAssignment"));
@@ -113,7 +116,7 @@ public class InferenceUnsatRepairPipelineTest {
         InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
         List<InferenceRepairCandidate> candidates =
                 new SimpleNninfRepairPlanner()
-                        .planFromInferenceContexts(report.getUnsatConstraintContexts());
+                        .planFromInferenceContexts(report.getRepairConstraintContexts());
         assertFalse(candidates.isEmpty());
 
         InferenceRepairSearchResult searchResult =
@@ -131,6 +134,36 @@ public class InferenceUnsatRepairPipelineTest {
         assertEquals("IDENTIFIER", passingAttempt.getTarget().getTreeKind());
         assertEquals("maybeId", passingAttempt.getTarget().getOriginalText());
         assertTrue(repairedSourceText(passingAttempt).contains("id = \"\";"));
+        assertTrue(searchResult.solvesInference());
+    }
+
+    @Test
+    public void repairsRealUnsatMethodCallArgumentExpression() {
+        InferenceRunSnapshot snapshot = runInference(METHOD_CALL_UNSAT_FIXTURE, "method-call");
+        assertNotNull(snapshot);
+        assertFalse(snapshot.hasSolution());
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(report.getRepairConstraintContexts());
+        assertFalse(candidates.isEmpty());
+
+        InferenceRepairSearchResult searchResult =
+                new SimpleNninfInferenceRepairValidator(
+                                METHOD_CALL_UNSAT_FIXTURE,
+                                new File("build/inference-method-call-repair-validation"))
+                        .validateAll(candidates);
+
+        InferenceRepairValidationResult validationResult = searchResult.getPassingResult();
+        assertNotNull(validationResult);
+        InferenceRepairAttempt passingAttempt = validationResult.getPassingAttempt();
+        assertEquals(
+                InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK,
+                passingAttempt.getRepairKind());
+        assertEquals("IDENTIFIER", passingAttempt.getTarget().getTreeKind());
+        assertEquals("maybeId", passingAttempt.getTarget().getOriginalText());
+        assertTrue(repairedSourceText(passingAttempt).contains("recordId(\"\");"));
         assertTrue(searchResult.solvesInference());
     }
 

@@ -7,9 +7,11 @@ import checkers.inference.model.Slot;
 
 import java.util.Collection;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Creates repair-oriented summaries from real inference snapshots. */
 public final class InferenceSnapshotReporter {
@@ -39,6 +41,8 @@ public final class InferenceSnapshotReporter {
         for (Constraint constraint : unsatConstraints) {
             unsatConstraintContexts.add(InferenceConstraintContextFormatter.format(constraint));
         }
+        List<InferenceConstraintContext> repairConstraintContexts =
+                repairConstraintContexts(snapshot.getConstraints(), unsatConstraints);
         return new InferenceConstraintReport(
                 snapshot.getSlots().size(),
                 insertableSlotCount,
@@ -47,6 +51,38 @@ public final class InferenceSnapshotReporter {
                 constraintCountsByType,
                 snapshot.hasSolution(),
                 unsatConstraints.size(),
-                unsatConstraintContexts);
+                unsatConstraintContexts,
+                repairConstraintContexts);
+    }
+
+    private static List<InferenceConstraintContext> repairConstraintContexts(
+            Collection<Constraint> constraints, Collection<Constraint> unsatConstraints) {
+        Set<Integer> unsatSlotIds = slotIds(unsatConstraints);
+        List<InferenceConstraintContext> contexts = new ArrayList<>();
+        for (Constraint constraint : constraints) {
+            if (unsatConstraints.contains(constraint) || touchesAnySlot(constraint, unsatSlotIds)) {
+                contexts.add(InferenceConstraintContextFormatter.format(constraint));
+            }
+        }
+        return contexts;
+    }
+
+    private static Set<Integer> slotIds(Collection<Constraint> constraints) {
+        Set<Integer> slotIds = new HashSet<>();
+        for (Constraint constraint : constraints) {
+            for (Slot slot : constraint.getSlots()) {
+                slotIds.add(slot.getId());
+            }
+        }
+        return slotIds;
+    }
+
+    private static boolean touchesAnySlot(Constraint constraint, Set<Integer> slotIds) {
+        for (Slot slot : constraint.getSlots()) {
+            if (slotIds.contains(slot.getId())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

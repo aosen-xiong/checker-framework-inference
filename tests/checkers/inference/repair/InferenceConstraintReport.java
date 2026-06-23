@@ -16,6 +16,7 @@ public final class InferenceConstraintReport {
     private final boolean solverHadSolution;
     private final int unsatConstraintCount;
     private final List<InferenceConstraintContext> unsatConstraintContexts;
+    private final List<InferenceConstraintContext> repairConstraintContexts;
 
     public InferenceConstraintReport(
             int slotCount,
@@ -25,7 +26,8 @@ public final class InferenceConstraintReport {
             Map<String, Integer> constraintCountsByType,
             boolean solverHadSolution,
             int unsatConstraintCount,
-            List<InferenceConstraintContext> unsatConstraintContexts) {
+            List<InferenceConstraintContext> unsatConstraintContexts,
+            List<InferenceConstraintContext> repairConstraintContexts) {
         this.slotCount = slotCount;
         this.insertableSlotCount = insertableSlotCount;
         this.constraintCount = constraintCount;
@@ -36,6 +38,8 @@ public final class InferenceConstraintReport {
         this.unsatConstraintCount = unsatConstraintCount;
         this.unsatConstraintContexts =
                 Collections.unmodifiableList(new ArrayList<>(unsatConstraintContexts));
+        this.repairConstraintContexts =
+                Collections.unmodifiableList(new ArrayList<>(repairConstraintContexts));
     }
 
     public int getSlotCount() {
@@ -70,6 +74,10 @@ public final class InferenceConstraintReport {
         return unsatConstraintContexts;
     }
 
+    public List<InferenceConstraintContext> getRepairConstraintContexts() {
+        return repairConstraintContexts;
+    }
+
     public String summarize() {
         return "slots="
                 + slotCount
@@ -85,6 +93,8 @@ public final class InferenceConstraintReport {
                 + unsatConstraintCount
                 + ", unsatConstraintContexts="
                 + summarizeUnsatContexts()
+                + ", repairConstraintContexts="
+                + summarizeRepairContexts()
                 + ", byType="
                 + constraintCountsByType;
     }
@@ -92,6 +102,14 @@ public final class InferenceConstraintReport {
     private List<String> summarizeUnsatContexts() {
         List<String> summaries = new ArrayList<>();
         for (InferenceConstraintContext context : unsatConstraintContexts) {
+            summaries.add(context.summarize());
+        }
+        return summaries;
+    }
+
+    private List<String> summarizeRepairContexts() {
+        List<String> summaries = new ArrayList<>();
+        for (InferenceConstraintContext context : repairConstraintContexts) {
             summaries.add(context.summarize());
         }
         return summaries;

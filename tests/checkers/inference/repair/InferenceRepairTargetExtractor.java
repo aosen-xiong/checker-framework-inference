@@ -29,12 +29,16 @@ import javax.tools.ToolProvider;
 public final class InferenceRepairTargetExtractor {
     private static final Pattern BLOCK_STATEMENT_PATTERN =
             Pattern.compile("Block\\.statement\\s+(\\d+)");
+    private static final Pattern METHOD_INVOCATION_ARGUMENT_PATTERN =
+            Pattern.compile("MethodInvocation\\.argument\\s+(\\d+)");
+    private static final Pattern METHOD_NAME_PATTERN =
+            Pattern.compile("\\.([A-Za-z_$][A-Za-z0-9_$]*)\\(");
 
     public InferenceRepairTarget extract(File sourceFile, InferenceRepairCandidate candidate) {
         String location = candidate.getTargetSlot().getLocation();
         int blockStatementIndex = blockStatementIndex(location);
         ParsedUnit parsedUnit = parse(sourceFile);
-        StatementFinder finder = new StatementFinder(blockStatementIndex);
+        StatementFinder finder = new StatementFinder(methodName(location), blockStatementIndex);
         finder.scan(parsedUnit.compilationUnit, null);
         Tree targetTree = resolvePathSuffix(finder.getFoundStatement(), location);
         if (targetTree == null) {
@@ -66,6 +70,14 @@ public final class InferenceRepairTargetExtractor {
         return Integer.parseInt(matcher.group(1));
     }
 
+    private static String methodName(String location) {
+        Matcher matcher = METHOD_NAME_PATTERN.matcher(location);
+        if (!matcher.find()) {
+            return null;
+        }
+        return matcher.group(1);
+    }
+
     private static Tree resolvePathSuffix(StatementTree statement, String location) {
         if (statement == null) {
             return null;
@@ -86,11 +98,32 @@ public final class InferenceRepairTargetExtractor {
         if (location.contains("MethodInvocation.methodSelect")
                 && target instanceof MethodInvocationTree) {
             target = ((MethodInvocationTree) target).getMethodSelect();
+        } else if (target instanceof MethodInvocationTree) {
+            Tree argument = methodInvocationArgument((MethodInvocationTree) target, location);
+            if (argument != null) {
+                target = argument;
+            }
         }
         if (location.contains("MemberSelect.expression") && target instanceof MemberSelectTree) {
             target = ((MemberSelectTree) target).getExpression();
         }
         return target;
+    }
+
+    private static Tree methodInvocationArgument(MethodInvocationTree methodInvocation, String location) {
+        Matcher matcher = METHOD_INVOCATION_ARGUMENT_PATTERN.matcher(location);
+        if (matcher.find()) {
+            int argumentIndex = Integer.parseInt(matcher.group(1));
+            if (argumentIndex < methodInvocation.getArguments().size()) {
+                return methodInvocation.getArguments().get(argumentIndex);
+            }
+            return null;
+        }
+        if (location.contains("ExpressionStatement.expression")
+                && methodInvocation.getArguments().size() == 1) {
+            return methodInvocation.getArguments().get(0);
+        }
+        return null;
     }
 
     private static ParsedUnit parse(File sourceFile) {
@@ -126,10 +159,12 @@ public final class InferenceRepairTargetExtractor {
     }
 
     private static final class StatementFinder extends TreeScanner<StatementTree, Void> {
+        private final String targetMethodName;
         private final int targetStatementIndex;
         private StatementTree foundStatement;
 
-        private StatementFinder(int targetStatementIndex) {
+        private StatementFinder(String targetMethodName, int targetStatementIndex) {
+            this.targetMethodName = targetMethodName;
             this.targetStatementIndex = targetStatementIndex;
         }
 
@@ -140,6 +175,10 @@ public final class InferenceRepairTargetExtractor {
             }
             if (methodTree.getBody() == null) {
                 return null;
+            }
+            if (targetMethodName != null
+                    && !targetMethodName.contentEquals(methodTree.getName())) {
+                return super.visitMethod(methodTree, unused);
             }
             List<? extends StatementTree> statements = methodTree.getBody().getStatements();
             if (targetStatementIndex >= statements.size()) {
