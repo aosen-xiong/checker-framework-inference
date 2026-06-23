@@ -47,7 +47,16 @@ public class InferenceLauncher {
     protected void initInferenceOptions(String[] args) {
         InitStatus initStatus = InferenceOptions.init(args, true);
 
-        initStatus.validateOrExit();
+        try {
+            initStatus.validate();
+        } catch (InferenceOptions.InvalidOptionsException e) {
+            outStream.println(e.getMessage());
+            e.getStatus().printUsage();
+            System.exit(1);
+        } catch (InferenceOptions.HelpRequestedException e) {
+            e.getStatus().printUsage();
+            System.exit(0);
+        }
     }
 
     public void launch(String[] args) {

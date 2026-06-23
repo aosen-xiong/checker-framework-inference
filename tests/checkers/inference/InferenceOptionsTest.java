@@ -76,6 +76,55 @@ public class InferenceOptionsTest {
         assertFalse(InferenceOptions.containsAfuOutputDirectoryOption("--outdirish=generated"));
     }
 
+    @Test
+    public void validateThrowsForMissingRequiredMode() {
+        InferenceOptions.InitStatus status =
+                InferenceOptions.init(
+                        new String[] {"--checker", ostrusted.OsTrustedChecker.class.getName()},
+                        true);
+
+        InferenceOptions.InvalidOptionsException exception = expectInvalidOptions(status);
+        assertTrue(exception.getMessage(), exception.getMessage().contains("mode of operation"));
+    }
+
+    @Test
+    public void validateThrowsForInvalidModeWithoutExiting() {
+        InferenceOptions.InitStatus status =
+                InferenceOptions.init(
+                        new String[] {
+                            "--mode=NOT_A_MODE",
+                            "--checker",
+                            ostrusted.OsTrustedChecker.class.getName()
+                        },
+                        true);
+
+        InferenceOptions.InvalidOptionsException exception = expectInvalidOptions(status);
+        assertTrue(
+                exception.getMessage(), exception.getMessage().contains("Could not recognize mode"));
+    }
+
+    @Test
+    public void validateThrowsForHelpRequestWithoutExiting() {
+        InferenceOptions.InitStatus status =
+                InferenceOptions.init(
+                        new String[] {
+                            "--help",
+                            "--mode=TYPECHECK",
+                            "--checker",
+                            ostrusted.OsTrustedChecker.class.getName()
+                        },
+                        true);
+
+        try {
+            status.validate();
+        } catch (InferenceOptions.HelpRequestedException e) {
+            assertEquals(status, e.getStatus());
+            return;
+        }
+
+        throw new AssertionError("Expected HelpRequestedException.");
+    }
+
     private static InferenceOptions.InitStatus initRoundtripWithAfuOptions(String afuOptions) {
         return InferenceOptions.init(
                 new String[] {
@@ -95,5 +144,17 @@ public class InferenceOptionsTest {
         assertTrue(
                 errors.toString(),
                 errors.get(0).contains("Annotation File Utilities output dir"));
+    }
+
+    private static InferenceOptions.InvalidOptionsException expectInvalidOptions(
+            InferenceOptions.InitStatus status) {
+        try {
+            status.validate();
+        } catch (InferenceOptions.InvalidOptionsException e) {
+            assertEquals(status, e.getStatus());
+            return e;
+        }
+
+        throw new AssertionError("Expected InvalidOptionsException.");
     }
 }

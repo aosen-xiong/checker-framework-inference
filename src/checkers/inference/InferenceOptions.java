@@ -192,16 +192,15 @@ public class InferenceOptions {
                 modeEnum = Mode.valueOf(InferenceOptions.mode);
 
             } catch (IllegalArgumentException iexc) {
-                System.out.println(
+                errors.add(
                         "Could not recognize mode: "
                                 + InferenceOptions.mode
                                 + "\n"
                                 + "valid modes: "
                                 + StringsPlume.join(", ", Mode.values()));
-                System.exit(1);
             }
 
-            if (modeEnum != Mode.TYPECHECK) {
+            if (modeEnum != null && modeEnum != Mode.TYPECHECK) {
                 if (solver == null) {
                     if (jsonFile != null) {
                         solver = JsonSerializerSolver.class.getCanonicalName();
@@ -223,7 +222,7 @@ public class InferenceOptions {
                 }
             }
 
-            if (modeEnum.ordinal() >= Mode.ROUNDTRIP.ordinal()) {
+            if (modeEnum != null && modeEnum.ordinal() >= Mode.ROUNDTRIP.ordinal()) {
                 if (afuOutputDir == null) {
                     if (!inPlace) {
                         errors.add(
@@ -407,16 +406,59 @@ public class InferenceOptions {
         }
 
         public void validateOrExit(String errorDelimiter) {
-            if (!errors.isEmpty()) {
-                System.out.println(StringsPlume.join(errorDelimiter, errors));
-                options.printUsage();
+            try {
+                validate(errorDelimiter);
+            } catch (InvalidOptionsException e) {
+                System.out.println(e.getMessage());
+                printUsage();
                 System.exit(1);
+            } catch (HelpRequestedException e) {
+                printUsage();
+                System.exit(0);
+            }
+        }
+
+        public void validate() {
+            validate("\n");
+        }
+
+        public void validate(String errorDelimiter) {
+            if (!errors.isEmpty()) {
+                throw new InvalidOptionsException(this, StringsPlume.join(errorDelimiter, errors));
             }
 
             if (printHelp) {
-                options.printUsage();
-                System.exit(0);
+                throw new HelpRequestedException(this);
             }
+        }
+
+        public void printUsage() {
+            options.printUsage();
+        }
+    }
+
+    public static class InvalidOptionsException extends RuntimeException {
+        private final InitStatus status;
+
+        public InvalidOptionsException(InitStatus status, String message) {
+            super(message);
+            this.status = status;
+        }
+
+        public InitStatus getStatus() {
+            return status;
+        }
+    }
+
+    public static class HelpRequestedException extends RuntimeException {
+        private final InitStatus status;
+
+        public HelpRequestedException(InitStatus status) {
+            this.status = status;
+        }
+
+        public InitStatus getStatus() {
+            return status;
         }
     }
 }

@@ -118,7 +118,16 @@ public class InferenceMain {
 
     public static void main(String[] args) {
         InitStatus status = InferenceOptions.init(args, false);
-        status.validateOrExit();
+        try {
+            status.validate();
+        } catch (InferenceOptions.InvalidOptionsException e) {
+            System.out.println(e.getMessage());
+            e.getStatus().printUsage();
+            System.exit(1);
+        } catch (InferenceOptions.HelpRequestedException e) {
+            e.getStatus().printUsage();
+            System.exit(0);
+        }
 
         InferenceMain inferenceMain = new InferenceMain();
         inferenceMain.run();
