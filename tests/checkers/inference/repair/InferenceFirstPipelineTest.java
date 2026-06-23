@@ -43,5 +43,15 @@ public class InferenceFirstPipelineTest {
         assertFalse(snapshot.getConstraints().isEmpty());
         assertNotNull(snapshot.getSolverResult());
         assertTrue(snapshot.hasSolution());
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        System.out.println("=== inference-first constraint report ===");
+        System.out.println(report.summarize());
+        assertTrue(report.getSlotCount() > 0);
+        assertTrue(report.getInsertableSlotCount() > 0);
+        assertTrue(report.getConstraintCount() > 0);
+        assertTrue(report.getLocatedConstraintCount() > 0);
+        assertTrue(report.getConstraintCountsByType().containsKey("SubtypeConstraint"));
+        assertTrue(report.solverHadSolution());
     }
 }
