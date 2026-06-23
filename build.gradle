@@ -197,7 +197,8 @@ def configureCheckerFrameworkInferenceTest = { Test testTask ->
         // events "passed", "skipped", "failed", "standardOut", "standardError"
         if (testTask.name == "CheckerDiagnosticCaptureTest"
                 || testTask.name == "RepairDryRunReportTest"
-                || testTask.name == "InferenceFirstPipelineTest") {
+                || testTask.name == "InferenceFirstPipelineTest"
+                || testTask.name == "MaxSat2TypeSolverUnsatTest") {
             events "failed", "standardOut", "standardError"
         } else {
             events "failed"

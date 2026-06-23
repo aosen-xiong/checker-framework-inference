@@ -48,6 +48,12 @@ public class MaxSat2TypeSolverUnsatTest {
                 EqualityConstraint.create(variable, bottom, AnnotationLocation.MISSING_LOCATION);
         List<Constraint> constraints = Arrays.asList(equalTop, equalBottom);
 
+        System.out.println("=== MaxSat2 unsat explanation example ===");
+        System.out.println("input constraints:");
+        for (Constraint constraint : constraints) {
+            System.out.println("  " + describe(constraint));
+        }
+
         InferenceResult result =
                 new MaxSat2TypeSolver()
                         .solve(
@@ -59,9 +65,31 @@ public class MaxSat2TypeSolverUnsatTest {
 
         assertFalse(result.hasSolution());
         Collection<Constraint> unsatConstraints = result.getUnsatisfiableConstraints();
+        System.out.println("solver has solution: " + result.hasSolution());
+        System.out.println("unsat explanation:");
+        for (Constraint constraint : unsatConstraints) {
+            System.out.println("  " + describe(constraint));
+        }
         assertEquals(2, unsatConstraints.size());
         assertTrue(unsatConstraints.contains(equalTop));
         assertTrue(unsatConstraints.contains(equalBottom));
+    }
+
+    private static String describe(Constraint constraint) {
+        if (constraint instanceof EqualityConstraint) {
+            EqualityConstraint equalityConstraint = (EqualityConstraint) constraint;
+            return describe(equalityConstraint.getFirst())
+                    + " == "
+                    + describe(equalityConstraint.getSecond());
+        }
+        return constraint.toString();
+    }
+
+    private static String describe(Slot slot) {
+        if (slot instanceof ConstantSlot) {
+            return ((ConstantSlot) slot).getValue().toString();
+        }
+        return "slot#" + slot.getId();
     }
 
     private static final class TestVariableSlot extends VariableSlot {
