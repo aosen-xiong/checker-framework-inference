@@ -377,6 +377,8 @@ afterEvaluate {
             jvmArgs += [
                 "-Xbootclasspath/p:${configurations.javacJar.asPath}"
             ]
+        } else {
+            jvmArgs += compilerArgsForRunningCF
         }
 
         testLogging {
