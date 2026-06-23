@@ -5,6 +5,7 @@ bin
 tests/inference-output
 tests/benchmarks/inference-output
 tests/inference.jaif
+default.jaif
 tests/*.class
 tests/build/**
 .settings/**
