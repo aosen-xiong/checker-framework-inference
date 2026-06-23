@@ -75,7 +75,11 @@ public class InferenceCli {
     public static void main(String[] args) throws IOException {
         initCli(args);
         InferenceMain inferenceMain = new InferenceMain();
-        inferenceMain.run();
+        try {
+            inferenceMain.run();
+        } catch (InferenceUnsatisfiableException e) {
+            System.exit(1);
+        }
     }
 
     public static void initCli(String[] args) {

@@ -134,7 +134,11 @@ public class InferenceMain {
         }
 
         InferenceMain inferenceMain = new InferenceMain();
-        inferenceMain.run();
+        try {
+            inferenceMain.run();
+        } catch (InferenceUnsatisfiableException e) {
+            System.exit(1);
+        }
     }
 
     /** Create an InferenceMain instance. Options are pulled from InferenceCli static fields. */
@@ -162,8 +166,8 @@ public class InferenceMain {
         // solverResult = null covers case when debug solver is used, but in this case
         // shouldn't exit
         if (solverResult != null && !solverResult.hasSolution()) {
-            logger.info("No solution, exiting...");
-            System.exit(1);
+            logger.info("No solution.");
+            throw new InferenceUnsatisfiableException(runSnapshot);
         }
         writeJaif();
     }

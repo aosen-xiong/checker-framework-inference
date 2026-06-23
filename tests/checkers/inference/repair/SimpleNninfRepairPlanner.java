@@ -32,6 +32,17 @@ public final class SimpleNninfRepairPlanner {
                                 targetSlot,
                                 NULLABLE,
                                 "weaken inference slot to @Nullable"));
+                continue;
+            }
+
+            targetSlot = firstSourceLocatedInferenceSlot(context);
+            if (targetSlot != null) {
+                candidates.add(
+                        new InferenceRepairCandidate(
+                                context,
+                                targetSlot,
+                                NULLABLE,
+                                "repair source expression causing @Nullable conflict"));
             }
         }
         return candidates;
@@ -41,6 +52,16 @@ public final class SimpleNninfRepairPlanner {
             InferenceConstraintContext context) {
         for (InferenceSlotContext slot : context.getSlots()) {
             if (slot.isInsertable() && "VARIABLE".equals(slot.getKind())) {
+                return slot;
+            }
+        }
+        return null;
+    }
+
+    private static InferenceSlotContext firstSourceLocatedInferenceSlot(
+            InferenceConstraintContext context) {
+        for (InferenceSlotContext slot : context.getSlots()) {
+            if (!"CONSTANT".equals(slot.getKind()) && !"MISSING".equals(slot.getLocationKind())) {
                 return slot;
             }
         }

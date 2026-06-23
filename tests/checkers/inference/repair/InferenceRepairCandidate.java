@@ -38,6 +38,11 @@ public final class InferenceRepairCandidate {
         return description
                 + " at "
                 + targetSlot.getDescription()
+                + " ["
+                + targetSlot.getLocationKind()
+                + ": "
+                + targetSlot.getLocation()
+                + "]"
                 + " because "
                 + constraintContext.getRelation();
     }
