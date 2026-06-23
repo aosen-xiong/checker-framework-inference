@@ -93,10 +93,10 @@ if [ $isJava8 -eq 0 ]; then
     runtimeBCP="${distDir}/javac.jar"
 fi
 
-eval "java" \
-     "-DInferenceDevelLauncher.binary=${distDir} " \
-     "-DInferenceLauncher.runtime.bcp=${runtimeBCP} " \
-     "-DInferenceDevelLauncher.runtime.cp=${classpath} " \
-     "-DInferenceDevelLauncher.annotated.jdk=${jdkPaths} " \
-     "-classpath ${classpath} " \
-     "checkers.inference.InferenceDevelLauncher " "$@"
+java \
+     "-DInferenceDevelLauncher.binary=${distDir}" \
+     "-DInferenceLauncher.runtime.bcp=${runtimeBCP}" \
+     "-DInferenceDevelLauncher.runtime.cp=${classpath}" \
+     "-DInferenceDevelLauncher.annotated.jdk=${jdkPaths}" \
+     -classpath "${classpath}" \
+     checkers.inference.InferenceDevelLauncher "$@"
