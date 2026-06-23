@@ -76,7 +76,7 @@ public class InferenceRepairTargetExtractorTest {
                         candidateWithLocation(
                                 "AstPathLocation( InferenceUnsatMethodCall.setId(Ljava/lang/String;)V.null:"
                                         + "InferenceUnsatMethodCall:setId(Ljava/lang/String;)V::"
-                                        + "Method.body, Block.statement 0,"
+                                        + "Method.body, Block.statement 1,"
                                         + " ExpressionStatement.expression,"
                                         + " MethodInvocation.argument 0 )"));
 
@@ -92,7 +92,7 @@ public class InferenceRepairTargetExtractorTest {
                         candidateWithLocation(
                                 "AstPathLocation( InferenceUnsatMethodCall.setId(Ljava/lang/String;)V.null:"
                                         + "InferenceUnsatMethodCall:setId(Ljava/lang/String;)V::"
-                                        + "Method.body, Block.statement 0,"
+                                        + "Method.body, Block.statement 1,"
                                         + " ExpressionStatement.expression )"));
 
         assertEquals("IDENTIFIER", target.getTreeKind());

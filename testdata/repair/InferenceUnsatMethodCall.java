@@ -6,6 +6,7 @@ class InferenceUnsatMethodCall {
     }
 
     void setId(@Nullable String maybeId) {
+        String fallbackId = "unknown";
         recordId(maybeId);
     }
 }

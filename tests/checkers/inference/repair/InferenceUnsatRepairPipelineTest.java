@@ -163,7 +163,10 @@ public class InferenceUnsatRepairPipelineTest {
                 passingAttempt.getRepairKind());
         assertEquals("IDENTIFIER", passingAttempt.getTarget().getTreeKind());
         assertEquals("maybeId", passingAttempt.getTarget().getOriginalText());
-        assertTrue(repairedSourceText(passingAttempt).contains("recordId(\"\");"));
+        assertEquals(
+                "replace nullable expression with in-scope non-null String local",
+                passingAttempt.getAppliedEdit());
+        assertTrue(repairedSourceText(passingAttempt).contains("recordId(fallbackId);"));
         assertTrue(searchResult.solvesInference());
     }
 

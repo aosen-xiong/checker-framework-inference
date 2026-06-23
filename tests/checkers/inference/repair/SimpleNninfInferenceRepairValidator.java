@@ -19,6 +19,7 @@ public final class SimpleNninfInferenceRepairValidator {
     private final File originalSourceFile;
     private final File outputDirectory;
     private final InferenceRepairTargetExtractor targetExtractor = new InferenceRepairTargetExtractor();
+    private final InferenceRepairEditGenerator editGenerator = new InferenceRepairEditGenerator();
 
     public SimpleNninfInferenceRepairValidator(File originalSourceFile, File outputDirectory) {
         this.originalSourceFile = originalSourceFile;
@@ -28,13 +29,18 @@ public final class SimpleNninfInferenceRepairValidator {
     public InferenceRepairValidationResult validate(InferenceRepairCandidate candidate) {
         List<InferenceRepairAttempt> attempts = new ArrayList<>();
         InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
-        for (InferenceRepairKind repairKind : repairSearchOrder(candidate, target)) {
-            File repairedSourceFile = repairedSourceFile(candidate, repairKind);
-            String appliedEdit = writeRepairedSource(repairedSourceFile, repairKind, target);
+        String originalSource = readSource(originalSourceFile);
+        for (InferenceRepairEdit edit : editGenerator.generate(candidate, target, originalSource)) {
+            File repairedSourceFile = repairedSourceFile(candidate, edit);
+            writeRepairedSource(repairedSourceFile, edit, target, originalSource);
             InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
             InferenceRepairAttempt attempt =
                     new InferenceRepairAttempt(
-                            repairKind, target, repairedSourceFile, appliedEdit, snapshot);
+                            edit.getRepairKind(),
+                            target,
+                            repairedSourceFile,
+                            edit.getDescription(),
+                            snapshot);
             attempts.add(attempt);
             if (attempt.solvesInference()) {
                 break;
@@ -60,38 +66,22 @@ public final class SimpleNninfInferenceRepairValidator {
         return new InferenceRepairSearchResult(validationResults);
     }
 
-    private File repairedSourceFile(
-            InferenceRepairCandidate candidate, InferenceRepairKind repairKind) {
+    private File repairedSourceFile(InferenceRepairCandidate candidate, InferenceRepairEdit edit) {
         return new File(
                 new File(
                         outputDirectory,
                         "slot_"
                                 + candidate.getTargetSlot().getId()
                                 + File.separator
-                                + repairKind.name().toLowerCase()),
+                                + edit.getDirectoryName()),
                 originalSourceFile.getName());
     }
 
-    private List<InferenceRepairKind> repairSearchOrder(
-            InferenceRepairCandidate candidate, InferenceRepairTarget target) {
-        List<InferenceRepairKind> repairKinds = new ArrayList<>();
-        if (supportsRepairKind(candidate.getRepairKind(), target)) {
-            repairKinds.add(candidate.getRepairKind());
-        }
-        if (!repairKinds.contains(InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK)) {
-            repairKinds.add(InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK);
-        }
-        return repairKinds;
-    }
-
-    private static boolean supportsRepairKind(
-            InferenceRepairKind repairKind, InferenceRepairTarget target) {
-        return repairKind != InferenceRepairKind.INSERT_NULL_GUARD
-                || "VARIABLE".equals(target.getTreeKind());
-    }
-
-    private String writeRepairedSource(
-            File repairedSourceFile, InferenceRepairKind repairKind, InferenceRepairTarget target) {
+    private static void writeRepairedSource(
+            File repairedSourceFile,
+            InferenceRepairEdit edit,
+            InferenceRepairTarget target,
+            String originalSource) {
         File parentDirectory = repairedSourceFile.getParentFile();
         if (!parentDirectory.exists() && !parentDirectory.mkdirs()) {
             throw new IllegalStateException(
@@ -99,66 +89,11 @@ public final class SimpleNninfInferenceRepairValidator {
                             + parentDirectory.getAbsolutePath());
         }
 
-        String originalSource = readSource(originalSourceFile);
-        String replacement = repairedTargetSource(originalSource, repairKind, target);
         String repairedSource =
                 originalSource.substring(0, checkedOffset(target.getStartOffset()))
-                        + replacement
+                        + edit.getReplacementSource()
                         + originalSource.substring(checkedOffset(target.getEndOffset()));
         writeSource(repairedSourceFile, repairedSource);
-        return editDescription(repairKind);
-    }
-
-    private static String editDescription(InferenceRepairKind repairKind) {
-        if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
-            return "insert null guard before @NonNull local assignment";
-        }
-        if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
-            return "replace nullable RHS with non-null fallback literal";
-        }
-        return "weaken @NonNull annotation to @Nullable";
-    }
-
-    private static String repairedTargetSource(
-            String originalSource, InferenceRepairKind repairKind, InferenceRepairTarget target) {
-        String targetSource =
-                originalSource.substring(
-                        checkedOffset(target.getStartOffset()), checkedOffset(target.getEndOffset()));
-        if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
-            return nullGuardFor(originalSource, target)
-                    + "\n"
-                    + indentationBefore(target, originalSource)
-                    + targetSource;
-        }
-        if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
-            return replaceRhsWithNonNullFallback(targetSource);
-        }
-        return weakenAnnotation(targetSource);
-    }
-
-    private static String nullGuardFor(String originalSource, InferenceRepairTarget target) {
-        String targetSource =
-                originalSource.substring(
-                        checkedOffset(target.getStartOffset()), checkedOffset(target.getEndOffset()));
-        String rhs = targetSource.substring(targetSource.indexOf('=') + 1).replace(";", "").trim();
-        return "if (" + rhs + " == null) { return; }";
-    }
-
-    private static String replaceRhsWithNonNullFallback(String targetSource) {
-        if (!targetSource.contains("=")) {
-            return "\"\"";
-        }
-        return targetSource.substring(0, targetSource.indexOf('=') + 1) + " \"\";";
-    }
-
-    private static String weakenAnnotation(String targetSource) {
-        return targetSource.replace("@NonNull String", "@Nullable String");
-    }
-
-    private static String indentationBefore(InferenceRepairTarget target, String source) {
-        int start = checkedOffset(target.getStartOffset());
-        int lineStart = source.lastIndexOf('\n', start - 1) + 1;
-        return source.substring(lineStart, start);
     }
 
     private static int checkedOffset(long offset) {
