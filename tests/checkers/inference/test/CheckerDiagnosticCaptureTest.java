@@ -73,6 +73,20 @@ public class CheckerDiagnosticCaptureTest {
         assertEquals(1, result.getActualDiagnostics().size());
     }
 
+    @Test
+    public void capturesRepairNullDerefFixtureDiagnostics() {
+        CheckerDiagnosticCapture.Result result =
+                CheckerDiagnosticCapture.run(
+                        NNINF_CHECKER,
+                        new File("testdata/repair/NullDerefRepair.java"),
+                        NNINF_OPTIONS);
+
+        printDiagnostics("repair null dereference", result);
+        assertFalse(result.summarize(), result.didTestFail());
+        assertEquals(1, result.getExpectedDiagnostics().size());
+        assertEquals(1, result.getActualDiagnostics().size());
+    }
+
     private static void printDiagnostics(String label, CheckerDiagnosticCapture.Result result) {
         System.out.println("=== " + label + " ===");
         System.out.println("checker: " + result.getChecker().getCanonicalName());
