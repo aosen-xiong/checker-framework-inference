@@ -19,4 +19,31 @@ public final class SimpleNninfRepairPlanner {
         }
         return candidates;
     }
+
+    public List<InferenceRepairCandidate> planFromInferenceContexts(
+            List<InferenceConstraintContext> contexts) {
+        List<InferenceRepairCandidate> candidates = new ArrayList<>();
+        for (InferenceConstraintContext context : contexts) {
+            InferenceSlotContext targetSlot = firstInsertableVariableSlot(context);
+            if (targetSlot != null) {
+                candidates.add(
+                        new InferenceRepairCandidate(
+                                context,
+                                targetSlot,
+                                NULLABLE,
+                                "weaken inference slot to @Nullable"));
+            }
+        }
+        return candidates;
+    }
+
+    private static InferenceSlotContext firstInsertableVariableSlot(
+            InferenceConstraintContext context) {
+        for (InferenceSlotContext slot : context.getSlots()) {
+            if (slot.isInsertable() && "VARIABLE".equals(slot.getKind())) {
+                return slot;
+            }
+        }
+        return null;
+    }
 }

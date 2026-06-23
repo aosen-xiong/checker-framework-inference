@@ -7,12 +7,15 @@ import static org.junit.Assert.assertTrue;
 import checkers.inference.DefaultInferenceResult;
 import checkers.inference.InferenceRunSnapshot;
 import checkers.inference.repair.InferenceConstraintContext;
+import checkers.inference.repair.InferenceRepairCandidate;
 import checkers.inference.repair.InferenceConstraintReport;
 import checkers.inference.repair.InferenceSlotContext;
 import checkers.inference.repair.InferenceSnapshotReporter;
+import checkers.inference.repair.SimpleNninfRepairPlanner;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -55,6 +58,34 @@ public class InferenceConstraintContextTest {
 
         System.out.println("=== unsat constraint source context example ===");
         System.out.println(context.summarize());
+    }
+
+    @Test
+    public void plansCandidateFromUnsatConstraintContext() {
+        AnnotationLocation location = new AnnotationLocation.ClassDeclLocation("repair.Example");
+        TestVariableSlot left = new TestVariableSlot(1, location, true);
+        TestVariableSlot right = new TestVariableSlot(2, location, false);
+        Constraint conflict = EqualityConstraint.create(left, right, location);
+        InferenceRunSnapshot snapshot =
+                new InferenceRunSnapshot(
+                        Arrays.asList(left, right),
+                        Collections.singletonList(conflict),
+                        new DefaultInferenceResult(Collections.singletonList(conflict)));
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(report.getUnsatConstraintContexts());
+
+        assertEquals(1, candidates.size());
+        InferenceRepairCandidate candidate = candidates.get(0);
+        assertEquals("slot#1 == slot#2", candidate.getConstraintContext().getRelation());
+        assertEquals(1, candidate.getTargetSlot().getId());
+        assertEquals("@Nullable", candidate.getQualifier());
+        assertEquals("weaken inference slot to @Nullable", candidate.getDescription());
+
+        System.out.println("=== inference-context repair candidate example ===");
+        System.out.println(candidate.summarize());
     }
 
     private static final class TestVariableSlot extends VariableSlot {
