@@ -6,9 +6,11 @@ import checkers.inference.InferenceOptions.InitStatus;
 import checkers.inference.InferenceRunSnapshot;
 import checkers.inference.InferenceUnsatisfiableException;
 import checkers.inference.solver.MaxSat2TypeSolver;
-import checkers.inference.test.InferenceTestUtilities;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,22 +67,13 @@ public final class SimpleNninfInferenceRepairValidator {
                             + parentDirectory.getAbsolutePath());
         }
 
-        List<String> originalLines = InferenceTestUtilities.getLines(originalSourceFile);
-        List<String> repairedLines = new ArrayList<>();
-        for (String line : originalLines) {
-            if (repairedLines.size() + 1 == target.getLineNumber()) {
-                if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
-                    repairedLines.add(nullGuardFor(line));
-                } else if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
-                    line = replaceRhsWithNonNullFallback(line);
-                } else {
-                    line = weakenAnnotation(line);
-                }
-            }
-            repairedLines.add(line);
-        }
-
-        InferenceTestUtilities.writeLines(repairedLines, repairedSourceFile);
+        String originalSource = readSource(originalSourceFile);
+        String replacement = repairedTargetSource(originalSource, repairKind, target);
+        String repairedSource =
+                originalSource.substring(0, checkedOffset(target.getStartOffset()))
+                        + replacement
+                        + originalSource.substring(checkedOffset(target.getEndOffset()));
+        writeSource(repairedSourceFile, repairedSource);
         return editDescription(repairKind);
     }
 
@@ -94,18 +87,66 @@ public final class SimpleNninfInferenceRepairValidator {
         return "weaken @NonNull annotation to @Nullable";
     }
 
-    private static String nullGuardFor(String line) {
-        String indentation = line.substring(0, line.indexOf(line.trim()));
-        String rhs = line.substring(line.indexOf('=') + 1).replace(";", "").trim();
-        return indentation + "if (" + rhs + " == null) { return; }";
+    private static String repairedTargetSource(
+            String originalSource, InferenceRepairKind repairKind, InferenceRepairTarget target) {
+        String targetSource =
+                originalSource.substring(
+                        checkedOffset(target.getStartOffset()), checkedOffset(target.getEndOffset()));
+        if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
+            return nullGuardFor(originalSource, target)
+                    + "\n"
+                    + indentationBefore(target, originalSource)
+                    + targetSource;
+        }
+        if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
+            return replaceRhsWithNonNullFallback(targetSource);
+        }
+        return weakenAnnotation(targetSource);
     }
 
-    private static String replaceRhsWithNonNullFallback(String line) {
-        return line.substring(0, line.indexOf('=') + 1) + " \"\";";
+    private static String nullGuardFor(String originalSource, InferenceRepairTarget target) {
+        String targetSource =
+                originalSource.substring(
+                        checkedOffset(target.getStartOffset()), checkedOffset(target.getEndOffset()));
+        String rhs = targetSource.substring(targetSource.indexOf('=') + 1).replace(";", "").trim();
+        return "if (" + rhs + " == null) { return; }";
     }
 
-    private static String weakenAnnotation(String line) {
-        return line.replace("@NonNull String", "@Nullable String");
+    private static String replaceRhsWithNonNullFallback(String targetSource) {
+        return targetSource.substring(0, targetSource.indexOf('=') + 1) + " \"\";";
+    }
+
+    private static String weakenAnnotation(String targetSource) {
+        return targetSource.replace("@NonNull String", "@Nullable String");
+    }
+
+    private static String indentationBefore(InferenceRepairTarget target, String source) {
+        int start = checkedOffset(target.getStartOffset());
+        int lineStart = source.lastIndexOf('\n', start - 1) + 1;
+        return source.substring(lineStart, start);
+    }
+
+    private static int checkedOffset(long offset) {
+        if (offset < 0 || offset > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Invalid source offset: " + offset);
+        }
+        return (int) offset;
+    }
+
+    private static String readSource(File sourceFile) {
+        try {
+            return new String(Files.readAllBytes(sourceFile.toPath()), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException("Could not read source file: " + sourceFile, e);
+        }
+    }
+
+    private static void writeSource(File sourceFile, String source) {
+        try {
+            Files.write(sourceFile.toPath(), source.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new RuntimeException("Could not write source file: " + sourceFile, e);
+        }
     }
 
     private static InferenceRunSnapshot runInference(File sourceFile) {

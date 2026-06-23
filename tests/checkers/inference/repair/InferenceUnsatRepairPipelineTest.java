@@ -12,6 +12,7 @@ import checkers.inference.InferenceRunSnapshot;
 import checkers.inference.InferenceUnsatisfiableException;
 import checkers.inference.model.Constraint;
 import checkers.inference.solver.MaxSat2TypeSolver;
+import checkers.inference.test.InferenceTestUtilities;
 
 import java.io.File;
 import java.util.List;
@@ -80,10 +81,23 @@ public class InferenceUnsatRepairPipelineTest {
                         .getOriginalText()
                         .contains("@NonNull String id = maybeId"));
         assertFalse(validationResult.getAttempts().get(0).solvesInference());
+        assertTrue(
+                repairedSourceText(validationResult.getAttempts().get(0))
+                        .contains(
+                                "if (maybeId == null) { return; }\n"
+                                        + "        @NonNull String id = maybeId;"));
         assertEquals(
                 InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK,
                 validationResult.getPassingAttempt().getRepairKind());
+        assertTrue(
+                repairedSourceText(validationResult.getPassingAttempt())
+                        .contains("@NonNull String id = \"\";"));
         assertTrue(validationResult.solvesInference());
+    }
+
+    private static String repairedSourceText(InferenceRepairAttempt attempt) {
+        List<String> lines = InferenceTestUtilities.getLines(attempt.getRepairedSourceFile());
+        return String.join("\n", lines) + "\n";
     }
 
     private static InferenceRunSnapshot runInference(File sourceFile, String jaifBaseName) {
