@@ -23,18 +23,43 @@ public final class SimpleNninfInferenceRepairValidator {
     }
 
     public InferenceRepairValidationResult validate(InferenceRepairCandidate candidate) {
-        File repairedSourceFile = new File(outputDirectory, originalSourceFile.getName());
-        String appliedEdit = writeRepairedSource(repairedSourceFile);
-        InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
-        return new InferenceRepairValidationResult(
-                candidate, repairedSourceFile, appliedEdit, snapshot);
+        List<InferenceRepairAttempt> attempts = new ArrayList<>();
+        for (InferenceRepairKind repairKind : repairSearchOrder(candidate)) {
+            File repairedSourceFile = repairedSourceFile(repairKind);
+            String appliedEdit = writeRepairedSource(repairedSourceFile, repairKind);
+            InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
+            InferenceRepairAttempt attempt =
+                    new InferenceRepairAttempt(
+                            repairKind, repairedSourceFile, appliedEdit, snapshot);
+            attempts.add(attempt);
+            if (attempt.solvesInference()) {
+                break;
+            }
+        }
+        return new InferenceRepairValidationResult(candidate, attempts);
     }
 
-    private String writeRepairedSource(File repairedSourceFile) {
-        if (!outputDirectory.exists() && !outputDirectory.mkdirs()) {
+    private File repairedSourceFile(InferenceRepairKind repairKind) {
+        return new File(
+                new File(outputDirectory, repairKind.name().toLowerCase()),
+                originalSourceFile.getName());
+    }
+
+    private List<InferenceRepairKind> repairSearchOrder(InferenceRepairCandidate candidate) {
+        List<InferenceRepairKind> repairKinds = new ArrayList<>();
+        repairKinds.add(candidate.getRepairKind());
+        if (!repairKinds.contains(InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK)) {
+            repairKinds.add(InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK);
+        }
+        return repairKinds;
+    }
+
+    private String writeRepairedSource(File repairedSourceFile, InferenceRepairKind repairKind) {
+        File parentDirectory = repairedSourceFile.getParentFile();
+        if (!parentDirectory.exists() && !parentDirectory.mkdirs()) {
             throw new IllegalStateException(
                     "Could not create repair output directory: "
-                            + outputDirectory.getAbsolutePath());
+                            + parentDirectory.getAbsolutePath());
         }
 
         List<String> originalLines = InferenceTestUtilities.getLines(originalSourceFile);
@@ -42,7 +67,13 @@ public final class SimpleNninfInferenceRepairValidator {
         boolean changed = false;
         for (String line : originalLines) {
             if (!changed && line.contains("@NonNull String") && line.contains("=")) {
-                line = replaceRhsWithNonNullFallback(line);
+                if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
+                    repairedLines.add(nullGuardFor(line));
+                } else if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
+                    line = replaceRhsWithNonNullFallback(line);
+                } else {
+                    line = weakenAnnotation(line);
+                }
                 changed = true;
             }
             repairedLines.add(line);
@@ -54,11 +85,31 @@ public final class SimpleNninfInferenceRepairValidator {
         }
 
         InferenceTestUtilities.writeLines(repairedLines, repairedSourceFile);
-        return "replace nullable RHS with non-null fallback literal";
+        return editDescription(repairKind);
+    }
+
+    private static String editDescription(InferenceRepairKind repairKind) {
+        if (repairKind == InferenceRepairKind.INSERT_NULL_GUARD) {
+            return "insert null guard before @NonNull local assignment";
+        }
+        if (repairKind == InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK) {
+            return "replace nullable RHS with non-null fallback literal";
+        }
+        return "weaken @NonNull annotation to @Nullable";
+    }
+
+    private static String nullGuardFor(String line) {
+        String indentation = line.substring(0, line.indexOf(line.trim()));
+        String rhs = line.substring(line.indexOf('=') + 1).replace(";", "").trim();
+        return indentation + "if (" + rhs + " == null) { return; }";
     }
 
     private static String replaceRhsWithNonNullFallback(String line) {
         return line.substring(0, line.indexOf('=') + 1) + " \"\";";
+    }
+
+    private static String weakenAnnotation(String line) {
+        return line.replace("@NonNull String", "@Nullable String");
     }
 
     private static InferenceRunSnapshot runInference(File sourceFile) {

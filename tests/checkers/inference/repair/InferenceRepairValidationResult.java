@@ -3,23 +3,20 @@ package checkers.inference.repair;
 import checkers.inference.InferenceRunSnapshot;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /** Result of applying one inference-guided repair candidate and rerunning inference. */
 public final class InferenceRepairValidationResult {
     private final InferenceRepairCandidate candidate;
-    private final File repairedSourceFile;
-    private final String appliedEdit;
-    private final InferenceRunSnapshot snapshot;
+    private final List<InferenceRepairAttempt> attempts;
 
     public InferenceRepairValidationResult(
             InferenceRepairCandidate candidate,
-            File repairedSourceFile,
-            String appliedEdit,
-            InferenceRunSnapshot snapshot) {
+            List<InferenceRepairAttempt> attempts) {
         this.candidate = candidate;
-        this.repairedSourceFile = repairedSourceFile;
-        this.appliedEdit = appliedEdit;
-        this.snapshot = snapshot;
+        this.attempts = Collections.unmodifiableList(new ArrayList<>(attempts));
     }
 
     public InferenceRepairCandidate getCandidate() {
@@ -27,18 +24,39 @@ public final class InferenceRepairValidationResult {
     }
 
     public File getRepairedSourceFile() {
-        return repairedSourceFile;
+        return requirePassingAttempt().getRepairedSourceFile();
     }
 
     public String getAppliedEdit() {
-        return appliedEdit;
+        return requirePassingAttempt().getAppliedEdit();
     }
 
     public InferenceRunSnapshot getSnapshot() {
-        return snapshot;
+        return requirePassingAttempt().getSnapshot();
+    }
+
+    public List<InferenceRepairAttempt> getAttempts() {
+        return attempts;
     }
 
     public boolean solvesInference() {
-        return snapshot != null && snapshot.hasSolution();
+        return getPassingAttempt() != null;
+    }
+
+    public InferenceRepairAttempt getPassingAttempt() {
+        for (InferenceRepairAttempt attempt : attempts) {
+            if (attempt.solvesInference()) {
+                return attempt;
+            }
+        }
+        return null;
+    }
+
+    private InferenceRepairAttempt requirePassingAttempt() {
+        InferenceRepairAttempt passingAttempt = getPassingAttempt();
+        if (passingAttempt == null) {
+            throw new IllegalStateException("No repair attempt solved inference.");
+        }
+        return passingAttempt;
     }
 }

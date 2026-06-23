@@ -30,6 +30,7 @@ public final class SimpleNninfRepairPlanner {
                         new InferenceRepairCandidate(
                                 context,
                                 targetSlot,
+                                InferenceRepairKind.WEAKEN_ANNOTATION,
                                 NULLABLE,
                                 "weaken inference slot to @Nullable"));
                 continue;
@@ -41,6 +42,7 @@ public final class SimpleNninfRepairPlanner {
                         new InferenceRepairCandidate(
                                 context,
                                 targetSlot,
+                                InferenceRepairKind.INSERT_NULL_GUARD,
                                 NULLABLE,
                                 "repair source expression causing @Nullable conflict"));
             }

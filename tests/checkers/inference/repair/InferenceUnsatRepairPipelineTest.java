@@ -1,6 +1,7 @@
 package checkers.inference.repair;
 
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -54,10 +55,24 @@ public class InferenceUnsatRepairPipelineTest {
                                 UNSAT_FIXTURE, new File("build/inference-repair-validation"))
                         .validate(candidates.get(0));
 
-        System.out.println("applied: " + validationResult.getAppliedEdit());
-        System.out.println(
-                "rerun inference solved: " + validationResult.getSnapshot().hasSolution());
+        for (InferenceRepairAttempt attempt : validationResult.getAttempts()) {
+            System.out.println(
+                    "attempt: "
+                            + attempt.getRepairKind()
+                            + " -> solved="
+                            + attempt.solvesInference()
+                            + ", edit="
+                            + attempt.getAppliedEdit());
+        }
 
+        assertEquals(2, validationResult.getAttempts().size());
+        assertEquals(
+                InferenceRepairKind.INSERT_NULL_GUARD,
+                validationResult.getAttempts().get(0).getRepairKind());
+        assertFalse(validationResult.getAttempts().get(0).solvesInference());
+        assertEquals(
+                InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK,
+                validationResult.getPassingAttempt().getRepairKind());
         assertTrue(validationResult.solvesInference());
     }
 
