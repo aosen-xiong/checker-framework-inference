@@ -154,7 +154,8 @@ public class InferenceUnsatRepairPipelineTest {
         assertFalse(candidates.isEmpty());
 
         InferenceRepairSearchResult searchResult =
-                new SimpleNninfInferenceRepairValidator(
+                new InferenceRepairValidator(
+                                InferenceRepairConfiguration.nninfDefault(),
                                 METHOD_CALL_UNSAT_FIXTURE,
                                 new File("build/inference-method-call-repair-validation"))
                         .validateAll(candidates);
