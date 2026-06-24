@@ -20,9 +20,22 @@ public final class InferenceRepairSearchResult {
         return getPassingResult() != null;
     }
 
+    public boolean isFullyVerified() {
+        return getVerifiedResult() != null;
+    }
+
     public InferenceRepairValidationResult getPassingResult() {
         for (InferenceRepairValidationResult validationResult : validationResults) {
             if (validationResult.solvesInference()) {
+                return validationResult;
+            }
+        }
+        return null;
+    }
+
+    public InferenceRepairValidationResult getVerifiedResult() {
+        for (InferenceRepairValidationResult validationResult : validationResults) {
+            if (validationResult.isFullyVerified()) {
                 return validationResult;
             }
         }

@@ -20,6 +20,7 @@ public final class SimpleNninfInferenceRepairValidator {
     private final File outputDirectory;
     private final InferenceRepairTargetExtractor targetExtractor = new InferenceRepairTargetExtractor();
     private final InferenceRepairEditGenerator editGenerator = new InferenceRepairEditGenerator();
+    private final InferenceRepairPostVerifier postVerifier = new InferenceRepairPostVerifier();
 
     public SimpleNninfInferenceRepairValidator(File originalSourceFile, File outputDirectory) {
         this.originalSourceFile = originalSourceFile;
@@ -31,18 +32,28 @@ public final class SimpleNninfInferenceRepairValidator {
         InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
         String originalSource = readSource(originalSourceFile);
         for (InferenceRepairEdit edit : editGenerator.generate(candidate, target, originalSource)) {
-            File repairedSourceFile = repairedSourceFile(candidate, edit);
+            File attemptDirectory = attemptDirectory(candidate, edit);
+            File repairedSourceFile = repairedSourceFile(attemptDirectory);
+            File jaifFile = new File(attemptDirectory, "repaired.jaif");
             writeRepairedSource(repairedSourceFile, edit, target, originalSource);
-            InferenceRunSnapshot snapshot = runInference(repairedSourceFile);
+            InferenceRunSnapshot snapshot = runInference(repairedSourceFile, jaifFile);
+            InferenceRepairPostVerificationResult postVerificationResult =
+                    snapshot != null && snapshot.hasSolution()
+                            ? postVerifier.verify(
+                                    repairedSourceFile,
+                                    jaifFile,
+                                    new File(attemptDirectory, "annotated-source"))
+                            : null;
             InferenceRepairAttempt attempt =
                     new InferenceRepairAttempt(
                             edit.getRepairKind(),
                             target,
                             repairedSourceFile,
                             edit.getDescription(),
-                            snapshot);
+                            snapshot,
+                            postVerificationResult);
             attempts.add(attempt);
-            if (attempt.solvesInference()) {
+            if (attempt.isFullyVerified()) {
                 break;
             }
         }
@@ -66,15 +77,14 @@ public final class SimpleNninfInferenceRepairValidator {
         return new InferenceRepairSearchResult(validationResults);
     }
 
-    private File repairedSourceFile(InferenceRepairCandidate candidate, InferenceRepairEdit edit) {
+    private File attemptDirectory(InferenceRepairCandidate candidate, InferenceRepairEdit edit) {
         return new File(
-                new File(
-                        outputDirectory,
-                        "slot_"
-                                + candidate.getTargetSlot().getId()
-                                + File.separator
-                                + edit.getDirectoryName()),
-                originalSourceFile.getName());
+                outputDirectory,
+                "slot_" + candidate.getTargetSlot().getId() + File.separator + edit.getDirectoryName());
+    }
+
+    private File repairedSourceFile(File attemptDirectory) {
+        return new File(attemptDirectory, originalSourceFile.getName());
     }
 
     private static void writeRepairedSource(
@@ -119,7 +129,7 @@ public final class SimpleNninfInferenceRepairValidator {
         }
     }
 
-    private static InferenceRunSnapshot runInference(File sourceFile) {
+    private static InferenceRunSnapshot runInference(File sourceFile, File jaifFile) {
         InitStatus status =
                 InferenceOptions.init(
                         new String[] {
@@ -128,7 +138,7 @@ public final class SimpleNninfInferenceRepairValidator {
                             "--solver",
                             MaxSat2TypeSolver.class.getCanonicalName(),
                             "--jaifFile",
-                            "build/inference-repair-validation/repaired.jaif",
+                            jaifFile.getAbsolutePath(),
                             "--hacks=true",
                             "--",
                             "-Anomsgtext",

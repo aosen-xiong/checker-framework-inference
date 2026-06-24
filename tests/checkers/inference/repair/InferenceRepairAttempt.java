@@ -11,18 +11,21 @@ public final class InferenceRepairAttempt {
     private final File repairedSourceFile;
     private final String appliedEdit;
     private final InferenceRunSnapshot snapshot;
+    private final InferenceRepairPostVerificationResult postVerificationResult;
 
     public InferenceRepairAttempt(
             InferenceRepairKind repairKind,
             InferenceRepairTarget target,
             File repairedSourceFile,
             String appliedEdit,
-            InferenceRunSnapshot snapshot) {
+            InferenceRunSnapshot snapshot,
+            InferenceRepairPostVerificationResult postVerificationResult) {
         this.repairKind = repairKind;
         this.target = target;
         this.repairedSourceFile = repairedSourceFile;
         this.appliedEdit = appliedEdit;
         this.snapshot = snapshot;
+        this.postVerificationResult = postVerificationResult;
     }
 
     public InferenceRepairKind getRepairKind() {
@@ -45,7 +48,17 @@ public final class InferenceRepairAttempt {
         return snapshot;
     }
 
+    public InferenceRepairPostVerificationResult getPostVerificationResult() {
+        return postVerificationResult;
+    }
+
     public boolean solvesInference() {
         return snapshot != null && snapshot.hasSolution();
+    }
+
+    public boolean isFullyVerified() {
+        return solvesInference()
+                && postVerificationResult != null
+                && postVerificationResult.isVerified();
     }
 }

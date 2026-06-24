@@ -66,9 +66,22 @@ public final class InferenceRepairValidationResult {
         return getPassingAttempt() != null;
     }
 
+    public boolean isFullyVerified() {
+        return getVerifiedAttempt() != null;
+    }
+
     public InferenceRepairAttempt getPassingAttempt() {
         for (InferenceRepairAttempt attempt : attempts) {
             if (attempt.solvesInference()) {
+                return attempt;
+            }
+        }
+        return null;
+    }
+
+    public InferenceRepairAttempt getVerifiedAttempt() {
+        for (InferenceRepairAttempt attempt : attempts) {
+            if (attempt.isFullyVerified()) {
                 return attempt;
             }
         }

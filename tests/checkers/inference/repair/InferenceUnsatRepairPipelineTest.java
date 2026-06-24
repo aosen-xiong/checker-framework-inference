@@ -102,8 +102,10 @@ public class InferenceUnsatRepairPipelineTest {
         assertTrue(
                 repairedSourceText(validationResult.getPassingAttempt())
                         .contains("@NonNull String id = \"\";"));
+        assertPostVerified(validationResult.getPassingAttempt());
         assertTrue(validationResult.solvesInference());
         assertTrue(searchResult.solvesInference());
+        assertTrue(searchResult.isFullyVerified());
     }
 
     @Test
@@ -134,7 +136,9 @@ public class InferenceUnsatRepairPipelineTest {
         assertEquals("IDENTIFIER", passingAttempt.getTarget().getTreeKind());
         assertEquals("maybeId", passingAttempt.getTarget().getOriginalText());
         assertTrue(repairedSourceText(passingAttempt).contains("id = \"\";"));
+        assertPostVerified(passingAttempt);
         assertTrue(searchResult.solvesInference());
+        assertTrue(searchResult.isFullyVerified());
     }
 
     @Test
@@ -167,7 +171,19 @@ public class InferenceUnsatRepairPipelineTest {
                 "replace nullable expression with in-scope non-null String local",
                 passingAttempt.getAppliedEdit());
         assertTrue(repairedSourceText(passingAttempt).contains("recordId(fallbackId);"));
+        assertPostVerified(passingAttempt);
         assertTrue(searchResult.solvesInference());
+        assertTrue(searchResult.isFullyVerified());
+    }
+
+    private static void assertPostVerified(InferenceRepairAttempt attempt) {
+        assertTrue(attempt.isFullyVerified());
+        InferenceRepairPostVerificationResult postVerification =
+                attempt.getPostVerificationResult();
+        assertNotNull(postVerification);
+        assertNotNull(postVerification.getAnnotatedSourceFile());
+        assertFalse(postVerification.didInsertionFail());
+        assertFalse(postVerification.didTypecheckFail());
     }
 
     private static List<InferenceRepairCandidate> withUnsupportedCandidateFirst(
