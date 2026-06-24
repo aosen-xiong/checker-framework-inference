@@ -19,16 +19,25 @@ public final class InferenceRepairValidator {
     private final File originalSourceFile;
     private final File outputDirectory;
     private final InferenceRepairTargetExtractor targetExtractor = new InferenceRepairTargetExtractor();
-    private final InferenceRepairEditGenerator editGenerator = new InferenceRepairEditGenerator();
+    private final InferenceRepairEditProvider editProvider;
     private final InferenceRepairPostVerifier postVerifier;
 
     public InferenceRepairValidator(
             InferenceRepairConfiguration configuration,
             File originalSourceFile,
             File outputDirectory) {
+        this(configuration, originalSourceFile, outputDirectory, new InferenceRepairEditGenerator());
+    }
+
+    public InferenceRepairValidator(
+            InferenceRepairConfiguration configuration,
+            File originalSourceFile,
+            File outputDirectory,
+            InferenceRepairEditProvider editProvider) {
         this.configuration = configuration;
         this.originalSourceFile = originalSourceFile;
         this.outputDirectory = outputDirectory;
+        this.editProvider = editProvider;
         this.postVerifier = new InferenceRepairPostVerifier(configuration);
     }
 
@@ -36,7 +45,7 @@ public final class InferenceRepairValidator {
         List<InferenceRepairAttempt> attempts = new ArrayList<>();
         InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
         String originalSource = readSource(originalSourceFile);
-        for (InferenceRepairEdit edit : editGenerator.generate(candidate, target, originalSource)) {
+        for (InferenceRepairEdit edit : editProvider.generate(candidate, target, originalSource)) {
             File attemptDirectory = attemptDirectory(candidate, edit);
             File repairedSourceFile = repairedSourceFile(attemptDirectory);
             File jaifFile = new File(attemptDirectory, "repaired.jaif");

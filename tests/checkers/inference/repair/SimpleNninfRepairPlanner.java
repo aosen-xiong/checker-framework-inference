@@ -8,7 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /** Proposes local nninf repairs from unsat-core constraints. */
-public final class SimpleNninfRepairPlanner {
+public final class SimpleNninfRepairPlanner implements InferenceRepairCandidatePlanner {
     public List<RepairCandidate> plan(UnsatCoreResult coreResult) {
         List<RepairCandidate> candidates = new ArrayList<>();
         for (RepairConstraint constraint : coreResult.getUnsatCore()) {
@@ -22,6 +22,7 @@ public final class SimpleNninfRepairPlanner {
         return candidates;
     }
 
+    @Override
     public List<InferenceRepairCandidate> planFromInferenceContexts(
             List<InferenceConstraintContext> contexts) {
         List<InferenceRepairCandidate> candidates = new ArrayList<>();

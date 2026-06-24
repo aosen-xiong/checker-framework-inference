@@ -6,7 +6,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Generates concrete source edits for one inference-guided repair target. */
-public final class InferenceRepairEditGenerator {
+public final class InferenceRepairEditGenerator implements InferenceRepairEditProvider {
     private static final Pattern NONNULL_LOCAL_PATTERN =
             Pattern.compile(
                     "(?m)^[ \\t]*(?:@NonNull\\s+)?([A-Za-z_$][A-Za-z0-9_$.<>?, ]*)\\s+"
@@ -21,6 +21,7 @@ public final class InferenceRepairEditGenerator {
                     "(?m)^[ \\t]*(?:@NonNull\\s+)?([A-Za-z_$][A-Za-z0-9_$.<>?, ]*)\\s+"
                             + "([A-Za-z_$][A-Za-z0-9_$]*)\\s*(?:=|;)");
 
+    @Override
     public List<InferenceRepairEdit> generate(
             InferenceRepairCandidate candidate, InferenceRepairTarget target, String originalSource) {
         List<InferenceRepairEdit> edits = new ArrayList<>();

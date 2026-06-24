@@ -16,6 +16,7 @@ import checkers.inference.test.InferenceTestUtilities;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -177,6 +178,35 @@ public class InferenceUnsatRepairPipelineTest {
         assertTrue(searchResult.isFullyVerified());
     }
 
+    @Test
+    public void validatesInjectedRepairEditProvider() {
+        InferenceRunSnapshot snapshot =
+                runInference(METHOD_CALL_UNSAT_FIXTURE, "method-call-injected");
+        assertNotNull(snapshot);
+        assertFalse(snapshot.hasSolution());
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(report.getRepairConstraintContexts());
+        assertFalse(candidates.isEmpty());
+
+        InferenceRepairSearchResult searchResult =
+                new InferenceRepairValidator(
+                                InferenceRepairConfiguration.nninfDefault(),
+                                METHOD_CALL_UNSAT_FIXTURE,
+                                new File("build/inference-method-call-injected-repair-validation"),
+                                new FixedFallbackEditProvider())
+                        .validateAll(candidates);
+
+        InferenceRepairValidationResult validationResult = searchResult.getPassingResult();
+        assertNotNull(validationResult);
+        InferenceRepairAttempt passingAttempt = validationResult.getPassingAttempt();
+        assertTrue(repairedSourceText(passingAttempt).contains("recordId(fallbackId);"));
+        assertPostVerified(passingAttempt);
+        assertTrue(searchResult.isFullyVerified());
+    }
+
     private static void assertPostVerified(InferenceRepairAttempt attempt) {
         assertTrue(attempt.isFullyVerified());
         InferenceRepairPostVerificationResult postVerification =
@@ -210,6 +240,21 @@ public class InferenceUnsatRepairPipelineTest {
     private static String repairedSourceText(InferenceRepairAttempt attempt) {
         List<String> lines = InferenceTestUtilities.getLines(attempt.getRepairedSourceFile());
         return String.join("\n", lines) + "\n";
+    }
+
+    private static final class FixedFallbackEditProvider implements InferenceRepairEditProvider {
+        @Override
+        public List<InferenceRepairEdit> generate(
+                InferenceRepairCandidate candidate,
+                InferenceRepairTarget target,
+                String originalSource) {
+            return Collections.singletonList(
+                    new InferenceRepairEdit(
+                            InferenceRepairKind.REPLACE_WITH_NONNULL_FALLBACK,
+                            "fallbackId",
+                            "replace nullable expression with injected fallback",
+                            "replace_with_injected_fallback"));
+        }
     }
 
     private static InferenceRunSnapshot runInference(File sourceFile, String jaifBaseName) {
