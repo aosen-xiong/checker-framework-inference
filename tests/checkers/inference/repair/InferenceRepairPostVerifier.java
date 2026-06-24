@@ -7,14 +7,15 @@ import org.checkerframework.framework.util.ExecUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 /** Reuses AFU insertion and checker typechecking after a repaired inference run succeeds. */
 public final class InferenceRepairPostVerifier {
-    private static final List<String> NNINF_TYPECHECK_OPTIONS =
-            Arrays.asList("-Anomsgtext", "-d", "tests/build/outputdir");
+    private final InferenceRepairConfiguration configuration;
+
+    public InferenceRepairPostVerifier(InferenceRepairConfiguration configuration) {
+        this.configuration = configuration;
+    }
 
     public InferenceRepairPostVerificationResult verify(
             File repairedSourceFile, File jaifFile, File annotatedSourceDirectory) {
@@ -29,9 +30,9 @@ public final class InferenceRepairPostVerifier {
                 annotatedSourceFile == null
                         ? null
                         : CheckerDiagnosticCapture.run(
-                                nninf.NninfChecker.class,
+                                configuration.getChecker(),
                                 Collections.singletonList(annotatedSourceFile),
-                                NNINF_TYPECHECK_OPTIONS);
+                                configuration.getTypecheckJavacOptions());
         return new InferenceRepairPostVerificationResult(
                 jaifFile,
                 annotatedSourceDirectory,

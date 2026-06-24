@@ -5,7 +5,6 @@ import checkers.inference.InferenceOptions;
 import checkers.inference.InferenceOptions.InitStatus;
 import checkers.inference.InferenceRunSnapshot;
 import checkers.inference.InferenceUnsatisfiableException;
-import checkers.inference.solver.MaxSat2TypeSolver;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,15 +15,25 @@ import java.util.List;
 
 /** Applies inference-guided repair candidates to temporary source copies and reruns inference. */
 public final class SimpleNninfInferenceRepairValidator {
+    private final InferenceRepairConfiguration configuration;
     private final File originalSourceFile;
     private final File outputDirectory;
     private final InferenceRepairTargetExtractor targetExtractor = new InferenceRepairTargetExtractor();
     private final InferenceRepairEditGenerator editGenerator = new InferenceRepairEditGenerator();
-    private final InferenceRepairPostVerifier postVerifier = new InferenceRepairPostVerifier();
+    private final InferenceRepairPostVerifier postVerifier;
 
     public SimpleNninfInferenceRepairValidator(File originalSourceFile, File outputDirectory) {
+        this(InferenceRepairConfiguration.nninfDefault(), originalSourceFile, outputDirectory);
+    }
+
+    public SimpleNninfInferenceRepairValidator(
+            InferenceRepairConfiguration configuration,
+            File originalSourceFile,
+            File outputDirectory) {
+        this.configuration = configuration;
         this.originalSourceFile = originalSourceFile;
         this.outputDirectory = outputDirectory;
+        this.postVerifier = new InferenceRepairPostVerifier(configuration);
     }
 
     public InferenceRepairValidationResult validate(InferenceRepairCandidate candidate) {
@@ -70,7 +79,7 @@ public final class SimpleNninfInferenceRepairValidator {
                 validationResult = InferenceRepairValidationResult.failed(candidate, e);
             }
             validationResults.add(validationResult);
-            if (validationResult.solvesInference()) {
+            if (validationResult.isFullyVerified()) {
                 break;
             }
         }
@@ -129,23 +138,10 @@ public final class SimpleNninfInferenceRepairValidator {
         }
     }
 
-    private static InferenceRunSnapshot runInference(File sourceFile, File jaifFile) {
+    private InferenceRunSnapshot runInference(File sourceFile, File jaifFile) {
         InitStatus status =
                 InferenceOptions.init(
-                        new String[] {
-                            "--checker",
-                            "nninf.NninfChecker",
-                            "--solver",
-                            MaxSat2TypeSolver.class.getCanonicalName(),
-                            "--jaifFile",
-                            jaifFile.getAbsolutePath(),
-                            "--hacks=true",
-                            "--",
-                            "-Anomsgtext",
-                            "-d",
-                            "tests/build/outputdir",
-                            sourceFile.getPath()
-                        },
+                        inferenceArgs(sourceFile, jaifFile),
                         false);
         status.validate();
 
@@ -156,5 +152,22 @@ public final class SimpleNninfInferenceRepairValidator {
         } catch (InferenceUnsatisfiableException e) {
             return e.getSnapshot();
         }
+    }
+
+    private String[] inferenceArgs(File sourceFile, File jaifFile) {
+        List<String> args = new ArrayList<>();
+        args.add("--checker");
+        args.add(configuration.getChecker().getCanonicalName());
+        args.add("--solver");
+        args.add(configuration.getSolver());
+        args.add("--jaifFile");
+        args.add(jaifFile.getAbsolutePath());
+        if (configuration.shouldUseHacks()) {
+            args.add("--hacks=true");
+        }
+        args.add("--");
+        args.addAll(configuration.getInferenceJavacOptions());
+        args.add(sourceFile.getPath());
+        return args.toArray(new String[args.size()]);
     }
 }
