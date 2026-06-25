@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import checkers.inference.test.CheckerDiagnosticCapture;
+import checkers.inference.test.InferenceTestUtilities;
 
 import org.junit.Test;
 
@@ -38,7 +39,48 @@ public class RepairBeyondAnnotationTest {
                                 new File("build/repair-beyond-annotation"))
                         .validate(candidates.get(0));
 
-        assertTrue(result.getCandidate().getDescription(), result.removesAllDiagnostics());
+        assertTrue(
+                result.getCandidate().getDescription()
+                        + "\n"
+                        + result.getCheckerResult().summarize(),
+                result.removesAllDiagnostics());
         assertEquals(0, result.getCheckerResult().getActualDiagnostics().size());
+    }
+
+    @Test
+    public void repairsNullableFieldReceiverDereferenceWithLocalGuard() {
+        CheckerDiagnosticCapture.Result capture =
+                CheckerDiagnosticCapture.run(
+                        NNINF_CHECKER,
+                        new File("testdata/repair/NullableReceiverDerefRepair.java"),
+                        NNINF_OPTIONS);
+        List<RepairDiagnostic> diagnostics = RepairDiagnosticAdapter.fromCaptureResult(capture);
+
+        assertEquals(1, diagnostics.size());
+
+        List<CodeRepairCandidate> candidates = new SimpleNninfCodeRepairPlanner().plan(diagnostics);
+        assertEquals(1, candidates.size());
+
+        CodeRepairValidationResult result =
+                new SimpleNninfCodeRepairValidator(
+                                NNINF_CHECKER,
+                                NNINF_OPTIONS,
+                                new File("build/repair-beyond-annotation"))
+                        .validate(candidates.get(0));
+
+        assertTrue(
+                result.getCandidate().getDescription()
+                        + "\n"
+                        + result.getCheckerResult().summarize(),
+                result.removesAllDiagnostics());
+        assertEquals(0, result.getCheckerResult().getActualDiagnostics().size());
+
+        String repairedSource =
+                String.join("\n", InferenceTestUtilities.getLines(result.getRepairedSourceFile()));
+        assertTrue(repairedSource.contains("if (this.builder == null) {"));
+        assertTrue(repairedSource.contains("@SuppressWarnings(\"cast.unsafe\")"));
+        assertTrue(
+                repairedSource.contains("Builder builder = (@nninf.qual.NonNull Builder) this.builder;"));
+        assertTrue(repairedSource.contains("builder.add(name, value);"));
     }
 }

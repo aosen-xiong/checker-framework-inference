@@ -14,6 +14,8 @@ public final class InferenceRepairConfiguration {
     private final List<String> inferenceJavacOptions;
     private final List<String> typecheckJavacOptions;
     private final boolean useHacks;
+    private final int maxCandidatesToValidate;
+    private final int maxEditsPerCandidate;
 
     public InferenceRepairConfiguration(
             Class<?> checker,
@@ -21,6 +23,30 @@ public final class InferenceRepairConfiguration {
             List<String> inferenceJavacOptions,
             List<String> typecheckJavacOptions,
             boolean useHacks) {
+        this(
+                checker,
+                solver,
+                inferenceJavacOptions,
+                typecheckJavacOptions,
+                useHacks,
+                Integer.MAX_VALUE,
+                Integer.MAX_VALUE);
+    }
+
+    public InferenceRepairConfiguration(
+            Class<?> checker,
+            String solver,
+            List<String> inferenceJavacOptions,
+            List<String> typecheckJavacOptions,
+            boolean useHacks,
+            int maxCandidatesToValidate,
+            int maxEditsPerCandidate) {
+        if (maxCandidatesToValidate <= 0) {
+            throw new IllegalArgumentException("maxCandidatesToValidate must be positive.");
+        }
+        if (maxEditsPerCandidate <= 0) {
+            throw new IllegalArgumentException("maxEditsPerCandidate must be positive.");
+        }
         this.checker = checker;
         this.solver = solver;
         this.inferenceJavacOptions =
@@ -28,6 +54,8 @@ public final class InferenceRepairConfiguration {
         this.typecheckJavacOptions =
                 Collections.unmodifiableList(new ArrayList<>(typecheckJavacOptions));
         this.useHacks = useHacks;
+        this.maxCandidatesToValidate = maxCandidatesToValidate;
+        this.maxEditsPerCandidate = maxEditsPerCandidate;
     }
 
     public static InferenceRepairConfiguration nninfDefault() {
@@ -58,5 +86,13 @@ public final class InferenceRepairConfiguration {
 
     public boolean shouldUseHacks() {
         return useHacks;
+    }
+
+    public int getMaxCandidatesToValidate() {
+        return maxCandidatesToValidate;
+    }
+
+    public int getMaxEditsPerCandidate() {
+        return maxEditsPerCandidate;
     }
 }

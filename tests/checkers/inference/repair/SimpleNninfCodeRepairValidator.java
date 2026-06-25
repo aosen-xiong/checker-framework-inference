@@ -6,9 +6,19 @@ import checkers.inference.test.InferenceTestUtilities;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Applies simple source-code repairs to temporary files and checks them with nninf. */
 public final class SimpleNninfCodeRepairValidator {
+    private static final Pattern SIMPLE_IDENTIFIER =
+            Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*");
+    private static final Pattern DECLARATION_PATTERN =
+            Pattern.compile(
+                    "(?:^|[,(;{])\\s*((?:@[A-Za-z_$][A-Za-z0-9_$.]*\\s+)*"
+                            + "[A-Za-z_$][A-Za-z0-9_$.<>?,\\[\\] ]*)\\s+%s\\b");
+
     private final Class<?> checker;
     private final List<String> javacOptions;
     private final File outputDirectory;
@@ -47,7 +57,7 @@ public final class SimpleNninfCodeRepairValidator {
                 continue;
             }
             if (index + 1 == diagnosticLine) {
-                repairedLines.add(guardedDereference(line));
+                repairedLines.addAll(guardedDereference(candidate, line));
             } else {
                 repairedLines.add(line);
             }
@@ -55,14 +65,96 @@ public final class SimpleNninfCodeRepairValidator {
         InferenceTestUtilities.writeLines(repairedLines, repairedSourceFile);
     }
 
-    private static String guardedDereference(String line) {
-        String receiver = nullableReceiver(line);
+    private static List<String> guardedDereference(CodeRepairCandidate candidate, String line) {
+        CheckerAstDiagnosticContext astContext =
+                CheckerAstDiagnosticContext.from(candidate.getDiagnostic());
+        Optional<NullableDereferenceAstContext> nullableDereference =
+                astContext.nullableDereference();
+        String receiver =
+                nullableDereference.isPresent()
+                        ? nullableDereference.get().getReceiverSource()
+                        : nullableReceiver(line);
         String indent = line.substring(0, line.indexOf(line.trim()));
         String trimmed = line.trim();
+        List<String> repairedLines = new ArrayList<>();
         if (trimmed.startsWith("return ") && trimmed.endsWith(".length();")) {
-            return indent + "return java.util.Objects.toString(" + receiver + ", \"\").length();";
+            repairedLines.add(
+                    indent + "return java.util.Objects.toString(" + receiver + ", \"\").length();");
+            return repairedLines;
+        }
+        if (trimmed.endsWith(";")) {
+            Optional<NullableFieldAstContext> nullableField =
+                    nullableDereference.isPresent()
+                            ? astContext.nullableFieldForReceiver(nullableDereference.get())
+                            : Optional.empty();
+            if (nullableField.isPresent()) {
+                String fieldType = nullableField.get().getDeclaredTypeSource();
+                repairedLines.add(indent + "if (this." + receiver + " == null) {");
+                repairedLines.add(
+                        indent
+                                + "    throw new IllegalStateException(\""
+                                + receiver
+                                + " is null\");");
+                repairedLines.add(indent + "}");
+                repairedLines.add(indent + "@SuppressWarnings(\"cast.unsafe\")");
+                repairedLines.add(
+                        indent
+                                + fieldType
+                                + " "
+                                + receiver
+                                + " = (@nninf.qual.NonNull "
+                                + fieldType
+                                + ") this."
+                                + receiver
+                                + ";");
+                repairedLines.add(line);
+                return repairedLines;
+            }
+            repairedLines.add(indent + "if (" + receiver + " == null) {");
+            repairedLines.add(
+                    indent
+                            + "    throw new IllegalStateException(\""
+                            + receiver
+                            + " is null\");");
+            repairedLines.add(indent + "}");
+            Optional<String> declaredType = declaredType(candidate, receiver);
+            if (declaredType.isPresent() && SIMPLE_IDENTIFIER.matcher(receiver).matches()) {
+                String nonNullReceiver = receiver + "NonNull";
+                repairedLines.add(indent + "@SuppressWarnings(\"cast.unsafe\")");
+                repairedLines.add(
+                        indent
+                                + "@nninf.qual.NonNull "
+                                + declaredType.get()
+                                + " "
+                                + nonNullReceiver
+                                + " = (@nninf.qual.NonNull "
+                                + declaredType.get()
+                                + ") "
+                                + receiver
+                                + ";");
+                repairedLines.add(line.replace(receiver, nonNullReceiver));
+            } else {
+                repairedLines.add(line);
+            }
+            return repairedLines;
         }
         throw new IllegalArgumentException("Unsupported dereference repair line: " + line);
+    }
+
+    private static Optional<String> declaredType(CodeRepairCandidate candidate, String variableName) {
+        List<String> lines = InferenceTestUtilities.getLines(candidate.getDiagnostic().getSourceFile());
+        int diagnosticLine = (int) candidate.getDiagnostic().getLineNumber();
+        Pattern pattern = Pattern.compile(String.format(DECLARATION_PATTERN.pattern(), variableName));
+        for (int index = Math.min(diagnosticLine - 1, lines.size() - 1); index >= 0; index--) {
+            Matcher matcher = pattern.matcher(lines.get(index));
+            if (matcher.find()) {
+                return Optional.of(
+                        matcher.group(1)
+                                .replaceAll("@[A-Za-z_$][A-Za-z0-9_$.]*\\s+", "")
+                                .trim());
+            }
+        }
+        return Optional.empty();
     }
 
     private static String nullableReceiver(String line) {

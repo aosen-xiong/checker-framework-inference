@@ -1,5 +1,7 @@
 package checkers.inference.repair;
 
+import java.util.List;
+
 /**
  * Marker interface for AI-backed repair edit providers.
  *
@@ -7,4 +9,14 @@ package checkers.inference.repair;
  * applying each edit and accepting it only after inference, AFU insertion, and final typecheck all
  * pass.
  */
-public interface AiInferenceRepairEditProvider extends InferenceRepairEditProvider {}
+public interface AiInferenceRepairEditProvider extends InferenceRepairEditProvider {
+    @Override
+    default List<InferenceRepairEdit> generate(
+            InferenceRepairCandidate candidate,
+            InferenceRepairTarget target,
+            String originalSource) {
+        return generate(RepairPromptContext.create(candidate, target, originalSource));
+    }
+
+    List<InferenceRepairEdit> generate(RepairPromptContext context);
+}

@@ -358,6 +358,583 @@ task testDataflowExternalSolvers(type: Exec, dependsOn: [dist, dependenciesJar])
     executable './testing/dataflowexample/ci-test.sh'
 }
 
+task repairExperimentReport(type: JavaExec, dependsOn: [testClasses, dist]) {
+    description 'Run an inference-repair experiment and write a JSON report. Configure with -PrepairExperimentSources or -PrepairExperimentSourceList.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceRepairExperimentMain'
+    systemProperties 'path.afu.scripts': "${afu}/scripts"
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        def reportArgs = []
+        reportArgs += ['--mode', project.findProperty('repairExperimentMode') ?: 'UNSAT_CORE_GUIDED']
+        reportArgs += [
+                '--edit-provider-mode',
+                project.findProperty('repairExperimentEditProviderMode') ?: 'DETERMINISTIC_ONLY'
+        ]
+        reportArgs += [
+                '--out',
+                project.findProperty('repairExperimentOutput') ?: "${buildDir}/inference-repair-experiments/report.json"
+        ]
+        if (project.hasProperty('repairExperimentProjectName')) {
+            reportArgs += ['--project-name', project.property('repairExperimentProjectName')]
+        }
+        if (project.hasProperty('repairExperimentProjectRoot')) {
+            reportArgs += ['--project-root', project.property('repairExperimentProjectRoot')]
+        }
+        if (project.hasProperty('repairExperimentRevision')) {
+            reportArgs += ['--revision', project.property('repairExperimentRevision')]
+        }
+        if (project.hasProperty('repairExperimentSourceList')) {
+            reportArgs += ['--source-list', project.property('repairExperimentSourceList')]
+        }
+        if (project.hasProperty('repairExperimentSourceRoots')) {
+            project.property('repairExperimentSourceRoots').split(',').each { sourceRoot ->
+                if (sourceRoot.trim()) {
+                    reportArgs += ['--source-root', sourceRoot.trim()]
+                }
+            }
+        }
+        if (project.hasProperty('repairExperimentSources')) {
+            project.property('repairExperimentSources').split(',').each { source ->
+                if (source.trim()) {
+                    reportArgs += ['--source', source.trim()]
+                }
+            }
+        }
+        if (!project.hasProperty('repairExperimentSourceList')
+                && !project.hasProperty('repairExperimentSources')
+                && !project.hasProperty('repairExperimentSourceRoots')) {
+            throw new GradleException('Set -PrepairExperimentSources=path1,path2, -PrepairExperimentSourceList=file, or -PrepairExperimentSourceRoots=dir1,dir2')
+        }
+        args = reportArgs
+    }
+}
+
+task repairExperimentCompare(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Compare inference-repair JSON reports and write a CSV summary. Configure with -PrepairExperimentReports or -PrepairExperimentReportList.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceRepairExperimentCompareMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        def compareArgs = []
+        compareArgs += [
+                '--out',
+                project.findProperty('repairExperimentComparisonOutput') ?: "${buildDir}/inference-repair-experiments/comparison.csv"
+        ]
+        if (project.hasProperty('repairExperimentReportList')) {
+            compareArgs += ['--report-list', project.property('repairExperimentReportList')]
+        }
+        if (project.hasProperty('repairExperimentReports')) {
+            project.property('repairExperimentReports').split(',').each { report ->
+                if (report.trim()) {
+                    compareArgs += ['--report', report.trim()]
+                }
+            }
+        }
+        if (!project.hasProperty('repairExperimentReportList')
+                && !project.hasProperty('repairExperimentReports')) {
+            throw new GradleException('Set -PrepairExperimentReports=report1,report2 or -PrepairExperimentReportList=file')
+        }
+        args = compareArgs
+    }
+}
+
+task repairLocalizationStudyReport(type: JavaExec, dependsOn: [testClasses, dist]) {
+    description 'Run the CFI nullability localization pilot-study report. Configure with -PrepairLocalizationSources, -PrepairLocalizationSourceList, or -PrepairLocalizationSourceRoots.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceLocalizationStudyMain'
+    systemProperties 'path.afu.scripts': "${afu}/scripts"
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        def reportArgs = []
+        reportArgs += [
+                '--out',
+                project.findProperty('repairLocalizationOutput') ?: "${buildDir}/inference-localization-study/report.json"
+        ]
+        if (project.hasProperty('repairLocalizationCsvOutput')) {
+            reportArgs += ['--csv-out', project.property('repairLocalizationCsvOutput')]
+        }
+        reportArgs += ['--sample-size', project.findProperty('repairLocalizationSampleSize') ?: '100']
+        reportArgs += ['--seed', project.findProperty('repairLocalizationSeed') ?: '1']
+        reportArgs += ['--top-k', project.findProperty('repairLocalizationTopK') ?: '5']
+        reportArgs += [
+                '--timeout-seconds',
+                project.findProperty('repairLocalizationTimeoutSeconds') ?: '60'
+        ]
+        if (project.findProperty('repairLocalizationInProcess') == 'true') {
+            reportArgs += ['--in-process']
+        }
+        if (project.findProperty('repairLocalizationValidateSourceRepairPlans') == 'true') {
+            reportArgs += ['--validate-source-repair-plans']
+        }
+        if (project.hasProperty('repairLocalizationSourceFilter')) {
+            reportArgs += ['--source-filter', project.property('repairLocalizationSourceFilter')]
+        }
+        if (project.hasProperty('repairLocalizationProjectName')) {
+            reportArgs += ['--project-name', project.property('repairLocalizationProjectName')]
+        }
+        if (project.hasProperty('repairLocalizationProjectRoot')) {
+            reportArgs += ['--project-root', project.property('repairLocalizationProjectRoot')]
+        }
+        if (project.hasProperty('repairLocalizationRevision')) {
+            reportArgs += ['--revision', project.property('repairLocalizationRevision')]
+        }
+        if (project.hasProperty('repairLocalizationSourceList')) {
+            reportArgs += ['--source-list', project.property('repairLocalizationSourceList')]
+        }
+        if (project.hasProperty('repairLocalizationCompanionSourceList')) {
+            reportArgs += [
+                    '--companion-source-list',
+                    project.property('repairLocalizationCompanionSourceList')
+            ]
+        }
+        if (project.hasProperty('repairLocalizationCompanionSourceLists')) {
+            project.property('repairLocalizationCompanionSourceLists').split(',').each { sourceList ->
+                if (sourceList.trim()) {
+                    reportArgs += ['--companion-source-list', sourceList.trim()]
+                }
+            }
+        }
+        if (project.hasProperty('repairLocalizationJavacOptionsFile')) {
+            reportArgs += [
+                    '--javac-options-file',
+                    project.property('repairLocalizationJavacOptionsFile')
+            ]
+        }
+        if (project.hasProperty('repairLocalizationJavacOptions')) {
+            project.property('repairLocalizationJavacOptions').split(',').each { javacOption ->
+                if (javacOption.trim()) {
+                    reportArgs += ['--javac-option', javacOption.trim()]
+                }
+            }
+        }
+        if (project.hasProperty('repairLocalizationSourceRoots')) {
+            project.property('repairLocalizationSourceRoots').split(',').each { sourceRoot ->
+                if (sourceRoot.trim()) {
+                    reportArgs += ['--source-root', sourceRoot.trim()]
+                }
+            }
+        }
+        if (project.hasProperty('repairLocalizationSources')) {
+            project.property('repairLocalizationSources').split(',').each { source ->
+                if (source.trim()) {
+                    reportArgs += ['--source', source.trim()]
+                }
+            }
+        }
+        if (project.hasProperty('repairLocalizationCompanionSources')) {
+            project.property('repairLocalizationCompanionSources').split(',').each { source ->
+                if (source.trim()) {
+                    reportArgs += ['--companion-source', source.trim()]
+                }
+            }
+        }
+        if (!project.hasProperty('repairLocalizationSourceList')
+                && !project.hasProperty('repairLocalizationSources')
+                && !project.hasProperty('repairLocalizationSourceRoots')) {
+            throw new GradleException('Set -PrepairLocalizationSources=path1,path2, -PrepairLocalizationSourceList=file, or -PrepairLocalizationSourceRoots=dir1,dir2')
+        }
+        args = reportArgs
+    }
+}
+
+task repairSourceList(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Write a reproducible Java source list for repair/localization experiments. Configure with -PrepairSourceListRoots.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceRepairSourceListMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        def sourceListArgs = []
+        sourceListArgs += [
+                '--out',
+                project.findProperty('repairSourceListOutput') ?: "${buildDir}/inference-repair-source-lists/sources.txt"
+        ]
+        if (project.hasProperty('repairSourceListRelativeTo')) {
+            sourceListArgs += ['--relative-to', project.property('repairSourceListRelativeTo')]
+        }
+        if (project.hasProperty('repairSourceListFilter')) {
+            sourceListArgs += ['--source-filter', project.property('repairSourceListFilter')]
+        }
+        if (project.hasProperty('repairSourceListRoots')) {
+            project.property('repairSourceListRoots').split(',').each { sourceRoot ->
+                if (sourceRoot.trim()) {
+                    sourceListArgs += ['--source-root', sourceRoot.trim()]
+                }
+            }
+        } else {
+            throw new GradleException('Set -PrepairSourceListRoots=dir1,dir2')
+        }
+        args = sourceListArgs
+    }
+}
+
+task repairBenchmarkSourceLists(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Write one Java source list per immediate child project under a benchmark root.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceBenchmarkSourceListsMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairBenchmarkRoot')) {
+            throw new GradleException('Set -PrepairBenchmarkRoot=path/to/benchmarks')
+        }
+        def sourceListArgs = []
+        sourceListArgs += ['--benchmark-root', project.property('repairBenchmarkRoot')]
+        sourceListArgs += [
+                '--out-dir',
+                project.findProperty('repairBenchmarkSourceListOutputDir') ?: "${buildDir}/inference-repair-source-lists"
+        ]
+        if (project.hasProperty('repairBenchmarkSourceListFilter')) {
+            sourceListArgs += [
+                    '--source-filter',
+                    project.property('repairBenchmarkSourceListFilter')
+            ]
+        }
+        if (project.hasProperty('repairBenchmarkIncludeProjects')) {
+            sourceListArgs += [
+                    '--include-projects',
+                    project.property('repairBenchmarkIncludeProjects')
+            ]
+        }
+        if (project.hasProperty('repairBenchmarkExcludeProjects')) {
+            sourceListArgs += [
+                    '--exclude-projects',
+                    project.property('repairBenchmarkExcludeProjects')
+            ]
+        }
+        args = sourceListArgs
+    }
+}
+
+task repairNullRepairManualSourceLists(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Write per-project source lists from a NullRepair manual-inspection scoring TSV.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.NullRepairManualInspectionSourceListsMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairNullRepairManualInspectionTsv')) {
+            throw new GradleException('Set -PrepairNullRepairManualInspectionTsv=path/to/manual_inspection_scoring.tsv')
+        }
+        def sourceListArgs = []
+        sourceListArgs += ['--input', project.property('repairNullRepairManualInspectionTsv')]
+        sourceListArgs += [
+                '--out-dir',
+                project.findProperty('repairNullRepairManualSourceListOutputDir') ?: "${buildDir}/inference-repair-source-lists/nullrepair-manual"
+        ]
+        if (project.hasProperty('repairNullRepairManualIncludeProjects')) {
+            sourceListArgs += [
+                    '--include-projects',
+                    project.property('repairNullRepairManualIncludeProjects')
+            ]
+        }
+        if (project.hasProperty('repairNullRepairManualExcludeProjects')) {
+            sourceListArgs += [
+                    '--exclude-projects',
+                    project.property('repairNullRepairManualExcludeProjects')
+            ]
+        }
+        if (project.hasProperty('repairNullRepairManualMaxBestScore')) {
+            sourceListArgs += [
+                    '--max-best-score',
+                    project.property('repairNullRepairManualMaxBestScore')
+            ]
+        }
+        args = sourceListArgs
+    }
+}
+
+task repairNullRepairManualMaterialize(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Materialize source files referenced by a NullRepair manual-inspection scoring TSV.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.NullRepairManualInspectionMaterializerMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairNullRepairManualInspectionTsv')) {
+            throw new GradleException('Set -PrepairNullRepairManualInspectionTsv=path/to/manual_inspection_scoring.tsv')
+        }
+        def materializeArgs = []
+        materializeArgs += ['--input', project.property('repairNullRepairManualInspectionTsv')]
+        materializeArgs += [
+                '--out-root',
+                project.findProperty('repairNullRepairManualMaterializedRoot') ?: "${buildDir}/nullrepair-manual-materialized/benchmarks"
+        ]
+        materializeArgs += [
+                '--source-list-out-dir',
+                project.findProperty('repairNullRepairManualSourceListOutputDir') ?: "${buildDir}/nullrepair-manual-materialized/source-lists"
+        ]
+        if (project.hasProperty('repairNullRepairManualTargetSourceListOutputDir')) {
+            materializeArgs += [
+                    '--target-source-list-out-dir',
+                    project.property('repairNullRepairManualTargetSourceListOutputDir')
+            ]
+        }
+        materializeArgs += [
+                '--case-manifest-out',
+                project.findProperty('repairNullRepairManualCaseManifestOutput') ?: "${buildDir}/nullrepair-manual-materialized/case-manifest.csv"
+        ]
+        if (project.hasProperty('repairNullRepairManualBenchmarkRoot')) {
+            materializeArgs += [
+                    '--benchmark-root',
+                    project.property('repairNullRepairManualBenchmarkRoot')
+            ]
+        } else if (project.hasProperty('repairNullRepairManualArtifactBenchmarksUrl')) {
+            materializeArgs += [
+                    '--artifact-benchmarks-url',
+                    project.property('repairNullRepairManualArtifactBenchmarksUrl')
+            ]
+        } else if (project.findProperty('repairNullRepairManualUseDefaultArtifactUrl') == 'true') {
+            materializeArgs += ['--use-default-artifact-url']
+        } else {
+            throw new GradleException('Set -PrepairNullRepairManualBenchmarkRoot=path/to/benchmarks or -PrepairNullRepairManualUseDefaultArtifactUrl=true')
+        }
+        if (project.hasProperty('repairNullRepairManualIncludeProjects')) {
+            materializeArgs += [
+                    '--include-projects',
+                    project.property('repairNullRepairManualIncludeProjects')
+            ]
+        }
+        if (project.hasProperty('repairNullRepairManualExcludeProjects')) {
+            materializeArgs += [
+                    '--exclude-projects',
+                    project.property('repairNullRepairManualExcludeProjects')
+            ]
+        }
+        if (project.hasProperty('repairNullRepairManualMaxBestScore')) {
+            materializeArgs += [
+                    '--max-best-score',
+                    project.property('repairNullRepairManualMaxBestScore')
+            ]
+        }
+        if (project.hasProperty('repairNullRepairManualClosureDepth')) {
+            materializeArgs += [
+                    '--closure-depth',
+                    project.property('repairNullRepairManualClosureDepth')
+            ]
+        }
+        args = materializeArgs
+    }
+}
+
+task repairLocalizationStudySummary(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Summarize a localization-study CSV report as Markdown. Configure with -PrepairLocalizationSummaryCsv.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceLocalizationStudySummaryMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairLocalizationSummaryCsv')) {
+            throw new GradleException('Set -PrepairLocalizationSummaryCsv=path/to/report.csv')
+        }
+        def summaryArgs = []
+        summaryArgs += ['--csv', project.property('repairLocalizationSummaryCsv')]
+        summaryArgs += [
+                '--out',
+                project.findProperty('repairLocalizationSummaryOutput') ?: "${buildDir}/inference-localization-study/summary.md"
+        ]
+        args = summaryArgs
+    }
+}
+
+task repairLocalizationDependencyReport(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Write a compact dependency-blocker report from a localization-study CSV. Configure with -PrepairLocalizationDependencyCsv.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceLocalizationDependencyReportMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairLocalizationDependencyCsv')) {
+            throw new GradleException('Set -PrepairLocalizationDependencyCsv=path/to/report.csv')
+        }
+        def dependencyArgs = []
+        dependencyArgs += ['--csv', project.property('repairLocalizationDependencyCsv')]
+        dependencyArgs += [
+                '--out',
+                project.findProperty('repairLocalizationDependencyOutput') ?: "${buildDir}/inference-localization-study/dependencies.csv"
+        ]
+        if (project.hasProperty('repairLocalizationDependencyExampleLimit')) {
+            dependencyArgs += [
+                    '--example-limit',
+                    project.property('repairLocalizationDependencyExampleLimit')
+            ]
+        }
+        args = dependencyArgs
+    }
+}
+
+task repairLocalizationStubSources(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Generate minimal Java source stubs for missing dependency symbols in a localization-study CSV. Configure with -PrepairLocalizationStubCsv.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceLocalizationStubSourceMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairLocalizationStubCsv')
+                && !project.hasProperty('repairLocalizationStubCsvs')) {
+            throw new GradleException('Set -PrepairLocalizationStubCsv=path/to/report.csv or -PrepairLocalizationStubCsvs=report1.csv,report2.csv')
+        }
+        def stubArgs = []
+        if (project.hasProperty('repairLocalizationStubCsv')) {
+            stubArgs += ['--csv', project.property('repairLocalizationStubCsv')]
+        }
+        if (project.hasProperty('repairLocalizationStubCsvs')) {
+            project.property('repairLocalizationStubCsvs').split(',').each { csv ->
+                if (csv.trim()) {
+                    stubArgs += ['--csv', csv.trim()]
+                }
+            }
+        }
+        stubArgs += [
+                '--out-dir',
+                project.findProperty('repairLocalizationStubOutputDir') ?: "${buildDir}/inference-localization-study/stubs"
+        ]
+        if (project.hasProperty('repairLocalizationStubSourceListOutput')) {
+            stubArgs += [
+                    '--source-list-out',
+                    project.property('repairLocalizationStubSourceListOutput')
+            ]
+        }
+        if (project.hasProperty('repairLocalizationStubProjectRoot')) {
+            stubArgs += [
+                    '--project-root',
+                    project.property('repairLocalizationStubProjectRoot')
+            ]
+        }
+        args = stubArgs
+    }
+}
+
+task repairLocalizationPilotMatrix(type: JavaExec, dependsOn: [testClasses, dist]) {
+    description 'Run localization pilot reports and summaries for a benchmark matrix CSV. Configure with -PrepairLocalizationMatrix.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceLocalizationPilotMatrixMain'
+    systemProperties 'path.afu.scripts': "${afu}/scripts"
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairLocalizationMatrix')) {
+            throw new GradleException('Set -PrepairLocalizationMatrix=path/to/matrix.csv')
+        }
+        def matrixArgs = []
+        matrixArgs += ['--matrix', project.property('repairLocalizationMatrix')]
+        matrixArgs += [
+                '--out-dir',
+                project.findProperty('repairLocalizationMatrixOutputDir') ?: "${buildDir}/inference-localization-study/matrix"
+        ]
+        matrixArgs += ['--sample-size', project.findProperty('repairLocalizationMatrixSampleSize') ?: '20']
+        matrixArgs += ['--seed', project.findProperty('repairLocalizationMatrixSeed') ?: '1']
+        matrixArgs += ['--top-k', project.findProperty('repairLocalizationMatrixTopK') ?: '5']
+        matrixArgs += [
+                '--timeout-seconds',
+                project.findProperty('repairLocalizationMatrixTimeoutSeconds') ?: '30'
+        ]
+        if (project.findProperty('repairLocalizationMatrixValidateSourceRepairPlans') == 'true') {
+            matrixArgs += ['--validate-source-repair-plans']
+        }
+        args = matrixArgs
+    }
+}
+
+task repairLocalizationMatrixFile(type: JavaExec, dependsOn: [testClasses]) {
+    description 'Write a localization pilot matrix CSV from a directory of per-project source lists.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceLocalizationMatrixFileMain'
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        if (!project.hasProperty('repairLocalizationMatrixSourceListDir')) {
+            throw new GradleException('Set -PrepairLocalizationMatrixSourceListDir=path/to/source-lists')
+        }
+        def matrixFileArgs = []
+        matrixFileArgs += [
+                '--source-list-dir',
+                project.property('repairLocalizationMatrixSourceListDir')
+        ]
+        if (project.hasProperty('repairLocalizationMatrixBenchmarkRoot')) {
+            matrixFileArgs += [
+                    '--benchmark-root',
+                    project.property('repairLocalizationMatrixBenchmarkRoot')
+            ]
+        }
+        if (project.hasProperty('repairLocalizationMatrixCompanionSourceListDir')) {
+            matrixFileArgs += [
+                    '--companion-source-list-dir',
+                    project.property('repairLocalizationMatrixCompanionSourceListDir')
+            ]
+        }
+        if (project.hasProperty('repairLocalizationMatrixIncludeProjects')) {
+            matrixFileArgs += [
+                    '--include-projects',
+                    project.property('repairLocalizationMatrixIncludeProjects')
+            ]
+        }
+        if (project.hasProperty('repairLocalizationMatrixExcludeProjects')) {
+            matrixFileArgs += [
+                    '--exclude-projects',
+                    project.property('repairLocalizationMatrixExcludeProjects')
+            ]
+        }
+        matrixFileArgs += [
+                '--out',
+                project.findProperty('repairLocalizationMatrixOutput') ?: "${buildDir}/inference-repair-source-lists/matrix.csv"
+        ]
+        args = matrixFileArgs
+    }
+}
+
+task repairCaseStudyTrace(type: JavaExec, dependsOn: [testClasses, dist]) {
+    description 'Run one inference-repair case study and write a human-readable Markdown trace.'
+    group 'Verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'checkers.inference.repair.InferenceRepairCaseStudyMain'
+    systemProperties 'path.afu.scripts': "${afu}/scripts"
+    if (!isJava8) {
+        jvmArgs compilerArgsForRunningCF
+    }
+    doFirst {
+        def traceArgs = []
+        traceArgs += [
+                '--out',
+                project.findProperty('repairCaseStudyOutput') ?: "${buildDir}/inference-repair-case-study/trace.md"
+        ]
+        if (project.hasProperty('repairCaseStudySource')) {
+            traceArgs += ['--source', project.property('repairCaseStudySource')]
+        } else {
+            traceArgs += ['--source', 'testdata/repair/InferenceUnsatMethodCall.java']
+        }
+        args = traceArgs
+    }
+}
+
 afterEvaluate {
     // Create a task for each test class whose name is the same as the class name.
     sourceSets.test.java.filter {

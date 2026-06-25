@@ -18,6 +18,8 @@ public class InferenceRepairConfigurationTest {
         assertTrue(configuration.getInferenceJavacOptions().contains("-Anomsgtext"));
         assertTrue(configuration.getTypecheckJavacOptions().contains("-Anomsgtext"));
         assertTrue(configuration.shouldUseHacks());
+        assertEquals(Integer.MAX_VALUE, configuration.getMaxCandidatesToValidate());
+        assertEquals(Integer.MAX_VALUE, configuration.getMaxEditsPerCandidate());
     }
 
     @Test
@@ -31,5 +33,23 @@ public class InferenceRepairConfigurationTest {
         }
 
         fail("Expected immutable inference javac options.");
+    }
+
+    @Test
+    public void validatesSearchBudgets() {
+        try {
+            new InferenceRepairConfiguration(
+                    nninf.NninfChecker.class,
+                    MaxSat2TypeSolver.class.getCanonicalName(),
+                    java.util.Collections.<String>emptyList(),
+                    java.util.Collections.<String>emptyList(),
+                    true,
+                    0,
+                    1);
+        } catch (IllegalArgumentException expected) {
+            return;
+        }
+
+        fail("Expected maxCandidatesToValidate validation to reject zero.");
     }
 }

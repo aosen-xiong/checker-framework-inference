@@ -1,11 +1,5 @@
 package checkers.inference.repair;
 
-import checkers.inference.InferenceMain;
-import checkers.inference.InferenceOptions;
-import checkers.inference.InferenceOptions.InitStatus;
-import checkers.inference.InferenceRunSnapshot;
-import checkers.inference.InferenceUnsatisfiableException;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +14,7 @@ public final class InferenceRepairValidator {
     private final File outputDirectory;
     private final InferenceRepairTargetExtractor targetExtractor = new InferenceRepairTargetExtractor();
     private final InferenceRepairEditProvider editProvider;
-    private final InferenceRepairPostVerifier postVerifier;
+    private final InferenceRepairRunner runner;
 
     public InferenceRepairValidator(
             InferenceRepairConfiguration configuration,
@@ -34,38 +28,56 @@ public final class InferenceRepairValidator {
             File originalSourceFile,
             File outputDirectory,
             InferenceRepairEditProvider editProvider) {
+        this(
+                configuration,
+                originalSourceFile,
+                outputDirectory,
+                editProvider,
+                new DefaultInferenceRepairRunner(configuration));
+    }
+
+    public InferenceRepairValidator(
+            InferenceRepairConfiguration configuration,
+            File originalSourceFile,
+            File outputDirectory,
+            InferenceRepairEditProvider editProvider,
+            InferenceRepairRunner runner) {
         this.configuration = configuration;
         this.originalSourceFile = originalSourceFile;
         this.outputDirectory = outputDirectory;
         this.editProvider = editProvider;
-        this.postVerifier = new InferenceRepairPostVerifier(configuration);
+        this.runner = runner;
     }
 
     public InferenceRepairValidationResult validate(InferenceRepairCandidate candidate) {
         List<InferenceRepairAttempt> attempts = new ArrayList<>();
         InferenceRepairTarget target = targetExtractor.extract(originalSourceFile, candidate);
         String originalSource = readSource(originalSourceFile);
+        int editAttempts = 0;
         for (InferenceRepairEdit edit : editProvider.generate(candidate, target, originalSource)) {
+            if (editAttempts >= configuration.getMaxEditsPerCandidate()) {
+                break;
+            }
+            editAttempts++;
             File attemptDirectory = attemptDirectory(candidate, edit);
             File repairedSourceFile = repairedSourceFile(attemptDirectory);
             File jaifFile = new File(attemptDirectory, "repaired.jaif");
             writeRepairedSource(repairedSourceFile, edit, target, originalSource);
-            InferenceRunSnapshot snapshot = runInference(repairedSourceFile, jaifFile);
-            InferenceRepairPostVerificationResult postVerificationResult =
-                    snapshot != null && snapshot.hasSolution()
-                            ? postVerifier.verify(
-                                    repairedSourceFile,
-                                    jaifFile,
-                                    new File(attemptDirectory, "annotated-source"))
-                            : null;
+            InferenceRepairRunResult runResult =
+                    runner.run(
+                            repairedSourceFile,
+                            jaifFile,
+                            new File(attemptDirectory, "annotated-source"));
             InferenceRepairAttempt attempt =
                     new InferenceRepairAttempt(
                             edit.getRepairKind(),
                             target,
                             repairedSourceFile,
                             edit.getDescription(),
-                            snapshot,
-                            postVerificationResult);
+                            edit.getReplacementSource(),
+                            edit.getOrigin(),
+                            runResult.getSnapshot(),
+                            runResult.getPostVerificationResult());
             attempts.add(attempt);
             if (attempt.isFullyVerified()) {
                 break;
@@ -77,6 +89,9 @@ public final class InferenceRepairValidator {
     public InferenceRepairSearchResult validateAll(List<InferenceRepairCandidate> candidates) {
         List<InferenceRepairValidationResult> validationResults = new ArrayList<>();
         for (InferenceRepairCandidate candidate : candidates) {
+            if (validationResults.size() >= configuration.getMaxCandidatesToValidate()) {
+                break;
+            }
             InferenceRepairValidationResult validationResult;
             try {
                 validationResult = validate(candidate);
@@ -146,33 +161,4 @@ public final class InferenceRepairValidator {
         }
     }
 
-    private InferenceRunSnapshot runInference(File sourceFile, File jaifFile) {
-        InitStatus status = InferenceOptions.init(inferenceArgs(sourceFile, jaifFile), false);
-        status.validate();
-
-        InferenceMain inferenceMain = InferenceMain.resetInstance();
-        try {
-            inferenceMain.run();
-            return inferenceMain.getRunSnapshot();
-        } catch (InferenceUnsatisfiableException e) {
-            return e.getSnapshot();
-        }
-    }
-
-    private String[] inferenceArgs(File sourceFile, File jaifFile) {
-        List<String> args = new ArrayList<>();
-        args.add("--checker");
-        args.add(configuration.getChecker().getCanonicalName());
-        args.add("--solver");
-        args.add(configuration.getSolver());
-        args.add("--jaifFile");
-        args.add(jaifFile.getAbsolutePath());
-        if (configuration.shouldUseHacks()) {
-            args.add("--hacks=true");
-        }
-        args.add("--");
-        args.addAll(configuration.getInferenceJavacOptions());
-        args.add(sourceFile.getPath());
-        return args.toArray(new String[args.size()]);
-    }
 }

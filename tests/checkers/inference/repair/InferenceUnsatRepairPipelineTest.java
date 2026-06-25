@@ -16,6 +16,7 @@ import checkers.inference.test.InferenceTestUtilities;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -76,7 +77,11 @@ public class InferenceUnsatRepairPipelineTest {
                             + " -> solved="
                             + attempt.solvesInference()
                             + ", edit="
-                            + attempt.getAppliedEdit());
+                            + attempt.getAppliedEdit()
+                            + ", replacement="
+                            + attempt.getReplacementSource()
+                            + ", origin="
+                            + attempt.getEditOrigin());
         }
 
         assertEquals(2, validationResult.getAttempts().size());
@@ -203,8 +208,74 @@ public class InferenceUnsatRepairPipelineTest {
         assertNotNull(validationResult);
         InferenceRepairAttempt passingAttempt = validationResult.getPassingAttempt();
         assertTrue(repairedSourceText(passingAttempt).contains("recordId(fallbackId);"));
+        assertEquals("fallbackId", passingAttempt.getReplacementSource());
+        assertEquals(
+                "replace nullable expression with injected fallback", passingAttempt.getAppliedEdit());
+        assertEquals(InferenceRepairEditOrigin.DETERMINISTIC, passingAttempt.getEditOrigin());
         assertPostVerified(passingAttempt);
         assertTrue(searchResult.isFullyVerified());
+    }
+
+    @Test
+    public void validatesAiProposedRepairEditProvider() {
+        InferenceRunSnapshot snapshot =
+                runInference(METHOD_CALL_UNSAT_FIXTURE, "method-call-ai");
+        assertNotNull(snapshot);
+        assertFalse(snapshot.hasSolution());
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(report.getRepairConstraintContexts());
+        assertFalse(candidates.isEmpty());
+
+        FakeAiRepairClient aiClient = new FakeAiRepairClient("fallbackId");
+        InferenceRepairSearchResult searchResult =
+                new InferenceRepairValidator(
+                                InferenceRepairConfiguration.nninfDefault(),
+                                METHOD_CALL_UNSAT_FIXTURE,
+                                new File("build/inference-method-call-ai-repair-validation"),
+                                new CompositeInferenceRepairEditProvider(
+                                        Collections.<InferenceRepairEditProvider>singletonList(
+                                                new AiRepairEditProvider(aiClient))))
+                        .validateAll(candidates);
+
+        InferenceRepairValidationResult validationResult = searchResult.getPassingResult();
+        assertNotNull(validationResult);
+        InferenceRepairAttempt passingAttempt = validationResult.getPassingAttempt();
+        assertTrue(repairedSourceText(passingAttempt).contains("recordId(fallbackId);"));
+        assertEquals("fallbackId", passingAttempt.getReplacementSource());
+        assertEquals("AI proposed replacement for repair target", passingAttempt.getAppliedEdit());
+        assertEquals(InferenceRepairEditOrigin.AI, passingAttempt.getEditOrigin());
+        assertPostVerified(passingAttempt);
+        assertTrue(searchResult.isFullyVerified());
+        assertNotNull(aiClient.getLastContext());
+        assertEquals("String", aiClient.getLastContext().getExpectedType());
+        assertEquals("maybeId", aiClient.getLastContext().getOriginalText());
+    }
+
+    @Test
+    public void stopsAtConfiguredCandidateBudget() {
+        InferenceRunSnapshot snapshot = runInference(UNSAT_FIXTURE, "candidate-budget");
+        assertNotNull(snapshot);
+        assertFalse(snapshot.hasSolution());
+
+        InferenceConstraintReport report = InferenceSnapshotReporter.report(snapshot);
+        List<InferenceRepairCandidate> candidates =
+                new SimpleNninfRepairPlanner()
+                        .planFromInferenceContexts(report.getRepairConstraintContexts());
+        assertFalse(candidates.isEmpty());
+
+        InferenceRepairSearchResult searchResult =
+                new InferenceRepairValidator(
+                                configurationWithBudgets(1, Integer.MAX_VALUE),
+                                UNSAT_FIXTURE,
+                                new File("build/inference-candidate-budget-repair-validation"))
+                        .validateAll(withUnsupportedCandidateFirst(candidates));
+
+        assertEquals(1, searchResult.getValidationResults().size());
+        assertTrue(searchResult.getValidationResults().get(0).hasValidationError());
+        assertFalse(searchResult.solvesInference());
     }
 
     private static void assertPostVerified(InferenceRepairAttempt attempt) {
@@ -237,6 +308,19 @@ public class InferenceUnsatRepairPipelineTest {
         return candidatesWithUnsupported;
     }
 
+    private static InferenceRepairConfiguration configurationWithBudgets(
+            int maxCandidatesToValidate, int maxEditsPerCandidate) {
+        List<String> javacOptions = Arrays.asList("-Anomsgtext", "-d", "tests/build/outputdir");
+        return new InferenceRepairConfiguration(
+                nninf.NninfChecker.class,
+                MaxSat2TypeSolver.class.getCanonicalName(),
+                javacOptions,
+                javacOptions,
+                true,
+                maxCandidatesToValidate,
+                maxEditsPerCandidate);
+    }
+
     private static String repairedSourceText(InferenceRepairAttempt attempt) {
         List<String> lines = InferenceTestUtilities.getLines(attempt.getRepairedSourceFile());
         return String.join("\n", lines) + "\n";
@@ -254,6 +338,25 @@ public class InferenceUnsatRepairPipelineTest {
                             "fallbackId",
                             "replace nullable expression with injected fallback",
                             "replace_with_injected_fallback"));
+        }
+    }
+
+    private static final class FakeAiRepairClient implements AiRepairClient {
+        private final List<String> replacementSources;
+        private RepairPromptContext lastContext;
+
+        private FakeAiRepairClient(String replacementSource) {
+            this.replacementSources = Collections.singletonList(replacementSource);
+        }
+
+        @Override
+        public List<String> proposeReplacementSources(RepairPromptContext context) {
+            this.lastContext = context;
+            return replacementSources;
+        }
+
+        private RepairPromptContext getLastContext() {
+            return lastContext;
         }
     }
 

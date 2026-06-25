@@ -66,10 +66,7 @@ public class CompositeInferenceRepairEditProviderTest {
         }
 
         @Override
-        public List<InferenceRepairEdit> generate(
-                InferenceRepairCandidate candidate,
-                InferenceRepairTarget target,
-                String originalSource) {
+        public List<InferenceRepairEdit> generate(RepairPromptContext context) {
             return Collections.singletonList(edit(replacementSource));
         }
     }

@@ -21,6 +21,8 @@ public final class RepairDiagnosticAdapter {
                             result.getChecker().getCanonicalName(),
                             resolveSourceFile(result.getSourceFiles(), sourceName),
                             diagnostic.getLineNumber(),
+                            diagnostic.getColumnNumber(),
+                            diagnostic.getPosition(),
                             diagnostic.getKind(),
                             extractDiagnosticKey(diagnostic.getMessage(null)),
                             diagnostic.getMessage(null)));

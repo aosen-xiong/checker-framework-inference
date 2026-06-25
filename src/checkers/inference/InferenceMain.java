@@ -312,7 +312,10 @@ public class InferenceMain {
                             inferenceChecker.getProcessingEnvironment());
             this.runSnapshot =
                     new InferenceRunSnapshot(
-                            slotManager.getSlots(), normalizedConstraints, solverResult);
+                            slotManager.getSlots(),
+                            normalizedConstraints,
+                            solverResult,
+                            getRealTypeFactory().getQualifierHierarchy());
         }
     }
 

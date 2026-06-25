@@ -10,6 +10,8 @@ public final class InferenceRepairAttempt {
     private final InferenceRepairTarget target;
     private final File repairedSourceFile;
     private final String appliedEdit;
+    private final String replacementSource;
+    private final InferenceRepairEditOrigin editOrigin;
     private final InferenceRunSnapshot snapshot;
     private final InferenceRepairPostVerificationResult postVerificationResult;
 
@@ -18,12 +20,16 @@ public final class InferenceRepairAttempt {
             InferenceRepairTarget target,
             File repairedSourceFile,
             String appliedEdit,
+            String replacementSource,
+            InferenceRepairEditOrigin editOrigin,
             InferenceRunSnapshot snapshot,
             InferenceRepairPostVerificationResult postVerificationResult) {
         this.repairKind = repairKind;
         this.target = target;
         this.repairedSourceFile = repairedSourceFile;
         this.appliedEdit = appliedEdit;
+        this.replacementSource = replacementSource;
+        this.editOrigin = editOrigin;
         this.snapshot = snapshot;
         this.postVerificationResult = postVerificationResult;
     }
@@ -42,6 +48,14 @@ public final class InferenceRepairAttempt {
 
     public String getAppliedEdit() {
         return appliedEdit;
+    }
+
+    public String getReplacementSource() {
+        return replacementSource;
+    }
+
+    public InferenceRepairEditOrigin getEditOrigin() {
+        return editOrigin;
     }
 
     public InferenceRunSnapshot getSnapshot() {

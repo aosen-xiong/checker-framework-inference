@@ -8,6 +8,8 @@ public final class RepairDiagnostic {
     private final String checkerName;
     private final File sourceFile;
     private final long lineNumber;
+    private final long columnNumber;
+    private final long position;
     private final Diagnostic.Kind kind;
     private final String key;
     private final String message;
@@ -16,12 +18,16 @@ public final class RepairDiagnostic {
             String checkerName,
             File sourceFile,
             long lineNumber,
+            long columnNumber,
+            long position,
             Diagnostic.Kind kind,
             String key,
             String message) {
         this.checkerName = checkerName;
         this.sourceFile = sourceFile;
         this.lineNumber = lineNumber;
+        this.columnNumber = columnNumber;
+        this.position = position;
         this.kind = kind;
         this.key = key;
         this.message = message;
@@ -37,6 +43,14 @@ public final class RepairDiagnostic {
 
     public long getLineNumber() {
         return lineNumber;
+    }
+
+    public long getColumnNumber() {
+        return columnNumber;
+    }
+
+    public long getPosition() {
+        return position;
     }
 
     public Diagnostic.Kind getKind() {

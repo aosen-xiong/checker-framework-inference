@@ -1,0 +1,21 @@
+gradle.projectsEvaluated {
+    rootProject.tasks.register("printRepairCompileClasspath") {
+        doLast {
+            def projectPath = rootProject.findProperty("repairGradleClasspathProject") ?: rootProject.path
+            def targetProject = rootProject.project(projectPath)
+            def configuration = targetProject.configurations.findByName("compileClasspath")
+            if (configuration == null) {
+                throw new GradleException("Project ${projectPath} has no compileClasspath configuration")
+            }
+            def lenient = configuration.resolvedConfiguration.lenientConfiguration
+            def unresolved = lenient.unresolvedModuleDependencies
+            if (!unresolved.empty) {
+                System.err.println("Unresolved compileClasspath dependencies:")
+                unresolved.each { dependency ->
+                    System.err.println("  " + dependency.selector)
+                }
+            }
+            println lenient.files.collect { it.absolutePath }.join(File.pathSeparator)
+        }
+    }
+}
