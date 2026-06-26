@@ -405,33 +405,19 @@ public class VariableAnnotator extends AnnotatedTypeScanner<Void, Tree> {
             TreePath pathToTree = inferenceTypeFactory.getPath(tree);
 
             if (pathToTree == null) {
-                pathToTree =
-                        expensiveBackupGetPath(varElem, tree, inferenceTypeFactory).getParentPath();
-
-                if (pathToTree == null) {
-                    throw new BugInCF(
-                            "Could not find path to tree: "
-                                    + tree
-                                    + "\n"
-                                    + "typeVar="
-                                    + typeVar
-                                    + "\n"
-                                    + "tree="
-                                    + tree
-                                    + "\n"
-                                    + "isUpperBoundOfTypeParam="
-                                    + isUpperBoundOfTypeParam);
+                TreePath backupPath = expensiveBackupGetPath(varElem, tree, inferenceTypeFactory);
+                if (backupPath != null) {
+                    pathToTree = backupPath.getParentPath();
                 }
             }
 
-            // TODO: What if parent is ANNOTATED_TYPE
-            Tree parent = pathToTree.getParentPath().getLeaf();
-            isUpperBoundOfTypeParam |= isInUpperBound(pathToTree);
-
-            if (parent.getKind() == Tree.Kind.METHOD) {
-                isReturn = true;
-            } else {
+            if (pathToTree == null) {
                 isReturn = false;
+            } else {
+                // TODO: What if parent is ANNOTATED_TYPE
+                Tree parent = pathToTree.getParentPath().getLeaf();
+                isUpperBoundOfTypeParam |= isInUpperBound(pathToTree);
+                isReturn = parent.getKind() == Tree.Kind.METHOD;
             }
         } else {
             isReturn = false;
